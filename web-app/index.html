@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ALARM_CTRL // CAFE</title>
+    <style>
+        /* Brutalist / Minimalist Aesthetic */
+        :root {
+            --bg: #ececec;
+            --text: #000000;
+            --accent: #ff0000;
+            --terminal-bg: #111;
+            --terminal-text: #0f0;
+        }
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .container {
+            border: 4px solid var(--text);
+            padding: 2rem;
+            width: 90%;
+            max-width: 450px;
+            box-shadow: 8px 8px 0px var(--text);
+            background: #fff;
+        }
+        h1 {
+            text-transform: uppercase;
+            border-bottom: 2px solid var(--text);
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+        .control-group {
+            margin-bottom: 1.5rem;
+            border: 2px solid var(--text);
+            padding: 1rem;
+        }
+        label {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+        button {
+            background: transparent;
+            border: 2px solid var(--text);
+            padding: 0.75rem 1rem;
+            font-family: inherit;
+            font-weight: bold;
+            font-size: 1rem;
+            cursor: pointer;
+            width: 100%;
+            margin-bottom: 0.5rem;
+            transition: all 0.1s;
+        }
+        button:active {
+            background: var(--text);
+            color: var(--bg);
+            transform: translate(2px, 2px);
+        }
+        button.danger {
+            color: var(--accent);
+            border-color: var(--accent);
+        }
+        button.danger:active {
+            background: var(--accent);
+            color: #fff;
+        }
+        /* Live Log Terminal */
+        .terminal {
+            background-color: var(--terminal-bg);
+            color: var(--terminal-text);
+            padding: 1rem;
+            font-size: 0.85rem;
+            height: 60px;
+            overflow: hidden;
+            border: 2px solid var(--text);
+            display: flex;
+            align-items: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container" id="app" style="display: none;">
+        <h1>SYSTEM_CTRL</h1>
+        
+        <div class="control-group">
+            <label>MANUAL ALARM TRIGGER</label>
+            <button class="danger" onclick="triggerAlarm(3)">SOUND ALARM (3s)</button>
+            <button class="danger" onclick="triggerAlarm(10)">SOUND ALARM (10s)</button>
+        </div>
+
+        <div class="control-group">
+            <label>LIVE SYSTEM LOG:</label>
+            <div class="terminal" id="live-log">
+                > Waiting for system connection...
+            </div>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <script>
+        // Basic Security
+        const PASSCODE = "1234"; // Change this later
+        let attempts = 0;
+        
+        function checkAccess() {
+            const entry = prompt("ENTER SYSTEM PASSCODE:");
+            if (entry === PASSCODE) {
+                document.getElementById('app').style.display = 'block';
+                initFirebase();
+            } else {
+                alert("ACCESS DENIED");
+                if(attempts < 2) { attempts++; checkAccess(); }
+            }
+        }
+
+        // 2. Insert your Firebase Config here
+        const firebaseConfig = {
+            apiKey: "AIzaSyDAbQ4ZNMUfbloh9ePIudCoYFZeYf4ledA",
+            authDomain: "untitledcafe-bfd05.firebaseapp.com",
+            databaseURL: "https://untitledcafe-bfd05-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "untitledcafe-bfd05",
+            storageBucket: "untitledcafe-bfd05.firebasestorage.app",
+            messagingSenderId: "421230777839",
+            appId: "1:421230777839:web:f8d2c2b5b01dd562bb121a"
+        };
+
+        let db;
+
+        function initFirebase() {
+            firebase.initializeApp(firebaseConfig);
+            db = firebase.database();
+            
+            // Listen for Live Logs from the ESP32
+            db.ref('system/latest_log').on('value', (snapshot) => {
+                const logMessage = snapshot.val();
+                if (logMessage) {
+                    document.getElementById('live-log').innerText = '> ' + logMessage;
+                }
+            });
+        }
+
+        // Trigger the alarm
+        function triggerAlarm(seconds) {
+            document.getElementById('live-log').innerText = '> Sending command...';
+            
+            // Update the duration first, then flip the trigger
+            db.ref('alarm_state').update({ 
+                duration: seconds,
+                trigger: true
+            });
+        }
+
+        // Start the app sequence
+        window.onload = checkAccess;
+    </script>
+</body>
+</html>
