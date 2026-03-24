@@ -78,23 +78,30 @@
             color: var(--terminal-text);
             padding: 1rem;
             font-size: 0.85rem;
-            height: 60px;
-            overflow: hidden;
+            min-height: 80px;
+            max-height: 150px; 
+            overflow-y: auto;
             border: 2px solid var(--text);
             display: flex;
-            align-items: center;
+            flex-direction: column;
+            justify-content: flex-end; 
         }
     </style>
 </head>
 <body>
 
     <div class="container" id="app" style="display: none;">
-        <h1>SYSTEM_CTRL</h1>
+        <h1>UNTITLED~SAFE</h1>
         
         <div class="control-group">
             <label>MANUAL ALARM TRIGGER</label>
             <button class="danger" onclick="triggerAlarm(3)">SOUND ALARM (3s)</button>
             <button class="danger" onclick="triggerAlarm(10)">SOUND ALARM (10s)</button>
+        </div>
+
+        <div class="control-group" style="border-color: var(--accent);">
+            <label style="color: var(--accent);">ADMIN: SYNC FIRMWARE</label>
+            <button class="danger" onclick="syncFromGit()">PULL LATEST GITHUB BUILD</button>
         </div>
 
         <div class="control-group">
@@ -124,7 +131,7 @@
             }
         }
 
-        // 2. Insert your Firebase Config here
+        // INSERT YOUR FIREBASE CONFIG HERE
         const firebaseConfig = {
             apiKey: "AIzaSyDAbQ4ZNMUfbloh9ePIudCoYFZeYf4ledA",
             authDomain: "untitledcafe-bfd05.firebaseapp.com",
@@ -142,23 +149,44 @@
             db = firebase.database();
             
             // Listen for Live Logs from the ESP32
+            let logHistory = [];
+            const MAX_LOGS = 6; 
+
             db.ref('system/latest_log').on('value', (snapshot) => {
                 const logMessage = snapshot.val();
                 if (logMessage) {
-                    document.getElementById('live-log').innerText = '> ' + logMessage;
+                    const time = new Date().toLocaleTimeString('en-US', { hour12: false });
+                    logHistory.push(`[${time}] > ${logMessage}`);
+                    
+                    if (logHistory.length > MAX_LOGS) {
+                        logHistory.shift(); 
+                    }
+                    
+                    document.getElementById('live-log').innerHTML = logHistory.join('<br>');
                 }
             });
         }
 
         // Trigger the alarm
         function triggerAlarm(seconds) {
-            document.getElementById('live-log').innerText = '> Sending command...';
-            
-            // Update the duration first, then flip the trigger
+            document.getElementById('live-log').innerHTML += '<br>> Sending command...';
             db.ref('alarm_state').update({ 
                 duration: seconds,
                 trigger: true
             });
+        }
+
+        // Trigger GitHub OTA Sync
+        function syncFromGit() {
+            const confirmUpdate = confirm("WARNING: This will pull the latest firmware.bin from GitHub and flash the ESP32. Proceed?");
+            if (confirmUpdate) {
+                document.getElementById('live-log').innerHTML += '<br>> Triggering GitHub Sync...';
+                
+                // Send the static raw GitHub link to Firebase (Updated to esp32-alarm)
+                db.ref('system').update({ 
+                    ota_url: 'https://raw.githubusercontent.com/romixplay/esp32-alarm/main/build/firmware.bin' 
+                });
+            }
         }
 
         // Start the app sequence
