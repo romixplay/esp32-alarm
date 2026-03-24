@@ -2,6 +2,9 @@
 #include <Firebase_ESP_Client.h>
 #include <ArduinoOTA.h>
 #include <driver/i2s.h>
+#include <HTTPClient.h>
+#include <HTTPUpdate.h>
+#include <WiFiClientSecure.h>
 
 // Provide the token generation process info.
 #include "addons/TokenHelper.h"
@@ -18,6 +21,10 @@ static const int PIN_I2S_LRC  = 15;  // WS/Word Select
 static const int PIN_I2S_BCLK = 18;  // Bit Clock
 static const int PIN_I2S_DIN  = 19;  // Data In
 static const int PIN_AMP_SD = 20;  // Shutdown/Enable
+
+// --- HEARTBEAT ---
+unsigned long lastHeartbeat = 0;
+const long heartbeatInterval = 10000; // Ping every 10 seconds
 
 // --- FIREBASE OBJECTS ---
 FirebaseData fbdo;
@@ -131,6 +138,47 @@ void loop() {
   ArduinoOTA.handle();
 
   if (Firebase.ready() && signupOK) {
+
+    // --- HEARTBEAT PING ---
+    if (millis() - lastHeartbeat > heartbeatInterval) {
+      lastHeartbeat = millis();
+      // Write the current uptime to force a database change event
+      Firebase.RTDB.setInt(&fbdo, "/system/last_ping", millis());
+    }
+
+    // --- HTTP OTA CHECK ---
+    if (Firebase.RTDB.getString(&fbdo, "/system/ota_url")) {
+      String ota_url = fbdo.to<String>();
+      
+      // If the URL is not empty, start the update process
+      if (ota_url.length() > 10) {
+        logToCloud("OTA Command received! Starting download...");
+        
+        // 1. Instantly clear the URL from Firebase so it doesn't get stuck in a boot loop!
+        Firebase.RTDB.setString(&fbdo, "/system/ota_url", "");
+        
+        // 2. Setup a secure client to handle HTTPS links (like GitHub)
+        WiFiClientSecure client;
+        client.setInsecure(); // Bypasses SSL certificate validation for simplicity
+        
+        // 3. Execute the Over-The-Air Update
+        t_httpUpdate_return ret = httpUpdate.update(client, ota_url);
+        
+        // 4. Handle the result
+        switch (ret) {
+          case HTTP_UPDATE_FAILED:
+            logToCloud("OTA FAILED: " + httpUpdate.getLastErrorString());
+            break;
+          case HTTP_UPDATE_NO_UPDATES:
+            logToCloud("OTA: No updates found.");
+            break;
+          case HTTP_UPDATE_OK:
+            logToCloud("OTA SUCCESS! Rebooting...");
+            // The ESP32 will automatically restart here with the new firmware.
+            break;
+        }
+      }
+    }
     
     // Check if the frontend triggered the alarm
     if (Firebase.RTDB.getBool(&fbdo, "/alarm_state/trigger")) {
