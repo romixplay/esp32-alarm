@@ -91,8 +91,10 @@
 <body>
 
     <div class="container" id="app" style="display: none;">
-        <h1>UNTITLED~SAFE</h1>
-        
+        <h1 style="display: flex; justify-content: space-between; align-items: center;">
+            UNTITLED~CAFE // ALARM
+            <span id="status-badge" style="background: var(--accent); color: #fff; padding: 2px 8px; font-size: 0.9rem; border: 2px solid var(--text);">OFFLINE</span>
+        </h1>        
         <div class="control-group">
             <label>MANUAL ALARM TRIGGER</label>
             <button class="danger" onclick="triggerAlarm(3)">SOUND ALARM (3s)</button>
@@ -147,6 +149,28 @@
         function initFirebase() {
             firebase.initializeApp(firebaseConfig);
             db = firebase.database();
+
+            // --- HEARTBEAT MONITOR ---
+            let lastSeenTime = 0;
+            const statusBadge = document.getElementById('status-badge');
+
+            // 1. Listen for the heartbeat ping from the ESP32
+            db.ref('system/last_ping').on('value', (snapshot) => {
+                lastSeenTime = Date.now(); // Record the exact moment we heard from it
+                statusBadge.innerText = "ONLINE";
+                statusBadge.style.background = "#00cc00"; // Green
+                statusBadge.style.color = "#000";
+            });
+
+            // 2. Check every 2 seconds if the ESP32 has gone silent
+            setInterval(() => {
+                // If it's been more than 15 seconds since the last ping, mark offline
+                if (Date.now() - lastSeenTime > 15000) {
+                    statusBadge.innerText = "OFFLINE";
+                    statusBadge.style.background = "var(--accent)"; // Red
+                    statusBadge.style.color = "#fff";
+                }
+            }, 2000);
             
             // Listen for Live Logs from the ESP32
             let logHistory = [];
