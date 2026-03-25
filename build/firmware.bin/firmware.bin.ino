@@ -203,6 +203,6 @@ void loop() {
     }
 
     // Polling delay (200ms is fast enough for UI responsiveness, slow enough not to spam Firebase)
-    delay(500); 
+    delay(1000); 
   }
 }
