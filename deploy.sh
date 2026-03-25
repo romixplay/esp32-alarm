@@ -2,7 +2,7 @@
 
 # 1. Add and push the new firmware to GitHub
 echo ">>> Pushing new firmware to GitHub..."
-git add build/firmware.bin
+git add .
 git commit -m "Auto-deploy new firmware build"
 git push origin main
 

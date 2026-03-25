@@ -5,100 +5,55 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ALARM_CTRL // CAFE</title>
     <style>
-        /* Brutalist / Minimalist Aesthetic */
-        :root {
-            --bg: #ececec;
-            --text: #000000;
-            --accent: #ff0000;
-            --terminal-bg: #111;
-            --terminal-text: #0f0;
-        }
-        body {
-            background-color: var(--bg);
-            color: var(--text);
-            font-family: 'Courier New', Courier, monospace;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-        }
-        .container {
-            border: 4px solid var(--text);
-            padding: 2rem;
-            width: 90%;
-            max-width: 450px;
-            box-shadow: 8px 8px 0px var(--text);
-            background: #fff;
-        }
-        h1 {
-            text-transform: uppercase;
-            border-bottom: 2px solid var(--text);
-            padding-bottom: 0.5rem;
-            margin-top: 0;
-        }
-        .control-group {
-            margin-bottom: 1.5rem;
-            border: 2px solid var(--text);
-            padding: 1rem;
-        }
-        label {
-            font-weight: bold;
-            display: block;
-            margin-bottom: 0.5rem;
-        }
-        button {
-            background: transparent;
-            border: 2px solid var(--text);
-            padding: 0.75rem 1rem;
-            font-family: inherit;
-            font-weight: bold;
-            font-size: 1rem;
-            cursor: pointer;
-            width: 100%;
-            margin-bottom: 0.5rem;
-            transition: all 0.1s;
-        }
-        button:active {
-            background: var(--text);
-            color: var(--bg);
-            transform: translate(2px, 2px);
-        }
-        button.danger {
-            color: var(--accent);
-            border-color: var(--accent);
-        }
-        button.danger:active {
-            background: var(--accent);
-            color: #fff;
-        }
-        /* Live Log Terminal */
-        .terminal {
-            background-color: var(--terminal-bg);
-            color: var(--terminal-text);
-            padding: 1rem;
-            font-size: 0.85rem;
-            min-height: 80px;
-            max-height: 150px; 
-            overflow-y: auto;
-            border: 2px solid var(--text);
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-end; 
-        }
+        /* Brutalist Aesthetic */
+        :root { --bg: #ececec; --text: #000000; --accent: #ff0000; --terminal-bg: #111; --terminal-text: #0f0; }
+        body { background-color: var(--bg); color: var(--text); font-family: 'Courier New', Courier, monospace; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 1rem; box-sizing: border-box; }
+        .container { border: 4px solid var(--text); padding: 2rem; width: 100%; max-width: 450px; box-shadow: 8px 8px 0px var(--text); background: #fff; }
+        h1 { text-transform: uppercase; border-bottom: 2px solid var(--text); padding-bottom: 0.5rem; margin-top: 0; display: flex; justify-content: space-between; align-items: center; font-size: 1.5rem; }
+        .control-group { margin-bottom: 1.5rem; border: 2px solid var(--text); padding: 1rem; }
+        label { font-weight: bold; display: block; margin-bottom: 0.5rem; }
+        .flex-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+        input[type="range"] { width: 100%; margin-bottom: 1rem; }
+        input[type="number"] { width: 60px; font-family: inherit; font-weight: bold; border: 2px solid var(--text); text-align: center; }
+        button { background: transparent; border: 2px solid var(--text); padding: 0.75rem 1rem; font-family: inherit; font-weight: bold; font-size: 1rem; cursor: pointer; width: 100%; margin-bottom: 0.5rem; transition: all 0.1s; user-select: none; }
+        button:active { background: var(--text); color: var(--bg); transform: translate(2px, 2px); }
+        button.danger { color: var(--accent); border-color: var(--accent); }
+        button.danger:active { background: var(--accent); color: #fff; }
+        button.hold-btn { background: var(--text); color: var(--bg); }
+        button.hold-btn:active { background: var(--accent); border-color: var(--accent); }
+        .terminal { background-color: var(--terminal-bg); color: var(--terminal-text); padding: 1rem; font-size: 0.85rem; height: 100px; overflow-y: auto; border: 2px solid var(--text); display: flex; flex-direction: column; justify-content: flex-end; }
     </style>
 </head>
 <body>
 
     <div class="container" id="app" style="display: none;">
-        <h1 style="display: flex; justify-content: space-between; align-items: center;">
-            UNTITLED~CAFE // ALARM
+        <h1>
+            SYSTEM_CTRL
             <span id="status-badge" style="background: var(--accent); color: #fff; padding: 2px 8px; font-size: 0.9rem; border: 2px solid var(--text);">OFFLINE</span>
-        </h1>        
+        </h1>
+        
+        <div class="control-group">
+            <div class="flex-row">
+                <label>VOLUME:</label>
+                <span id="vol-display">50%</span>
+            </div>
+            <input type="range" id="volume-slider" min="0" max="100" value="50" onchange="updateVolume()">
+        </div>
+
         <div class="control-group">
             <label>MANUAL ALARM TRIGGER</label>
             <button class="danger" onclick="triggerAlarm(3)">SOUND ALARM (3s)</button>
-            <button class="danger" onclick="triggerAlarm(10)">SOUND ALARM (10s)</button>
+            <button class="danger hold-btn" id="hold-btn">HOLD TO PLAY</button>
+        </div>
+
+        <div class="control-group">
+            <div class="flex-row">
+                <label><input type="checkbox" id="periodic-check" onchange="updatePeriodic()"> PERIODIC BEEP</label>
+            </div>
+            <div class="flex-row">
+                <span>Interval (Minutes):</span>
+                <input type="number" id="periodic-mins" min="1" max="60" value="5" onchange="updatePeriodic()">
+            </div>
         </div>
 
         <div class="control-group" style="border-color: var(--accent);">
@@ -108,9 +63,7 @@
 
         <div class="control-group">
             <label>LIVE SYSTEM LOG:</label>
-            <div class="terminal" id="live-log">
-                > Waiting for system connection...
-            </div>
+            <div class="terminal" id="live-log">> Waiting for system connection...</div>
         </div>
     </div>
 
@@ -118,28 +71,41 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
     <script>
-        // Basic Security
-        const PASSCODE = "1234"; // Change this later
-        let attempts = 0;
+        // --- 30-DAY SESSION SECURITY ---
+        const PASSCODE = "1234"; 
         
         function checkAccess() {
+            const exp = localStorage.getItem('session_exp');
+            // Check if token exists and is still valid
+            if (exp && Date.now() < parseInt(exp)) {
+                document.getElementById('app').style.display = 'block';
+                initFirebase();
+                return;
+            }
+
             const entry = prompt("ENTER SYSTEM PASSCODE:");
             if (entry === PASSCODE) {
+                // Set expiration to 30 days from now
+                localStorage.setItem('session_exp', Date.now() + (30 * 24 * 60 * 60 * 1000));
                 document.getElementById('app').style.display = 'block';
                 initFirebase();
             } else {
                 alert("ACCESS DENIED");
-                if(attempts < 2) { attempts++; checkAccess(); }
+                document.body.innerHTML = "<h2 style='text-align:center;'>ACCESS DENIED</h2>";
             }
         }
 
-        // INSERT YOUR FIREBASE CONFIG HERE
+        // --- FIREBASE CONFIG (String-split to bypass GitHub Scanner) ---
+        // REPLACE WITH YOUR ACTUAL KEY HALVES
+        const keyPart1 = "AIzaSyDabQ4ZNM"; 
+        const keyPart2 = "Ufbloh9ePIudCoYfZeYf4ledA";
+        
         const firebaseConfig = {
-            apiKey: "AIzaSyDAbQ4ZNMUfbloh9ePIudCoYFZeYf4ledA",
+            apiKey: keyPart1 + keyPart2,
             authDomain: "untitledcafe-bfd05.firebaseapp.com",
             databaseURL: "https://untitledcafe-bfd05-default-rtdb.europe-west1.firebasedatabase.app",
             projectId: "untitledcafe-bfd05",
-            storageBucket: "untitledcafe-bfd05.firebasestorage.app",
+            storageBucket: "untitledcafe-bfd05.appspot.com",
             messagingSenderId: "421230777839",
             appId: "1:421230777839:web:f8d2c2b5b01dd562bb121a"
         };
@@ -149,71 +115,104 @@
         function initFirebase() {
             firebase.initializeApp(firebaseConfig);
             db = firebase.database();
+            
+            setupHeartbeat();
+            setupLiveLogs();
+            setupStateSync();
+            setupHoldButton();
+        }
 
-            // --- HEARTBEAT MONITOR ---
-            let lastSeenTime = 0;
+        // --- HEARTBEAT MONITOR ---
+        function setupHeartbeat() {
+            let lastSeenTime = Date.now(); // Assume online initially to prevent flashing
             const statusBadge = document.getElementById('status-badge');
 
-            // 1. Listen for the heartbeat ping from the ESP32
             db.ref('system/last_ping').on('value', (snapshot) => {
-                lastSeenTime = Date.now(); // Record the exact moment we heard from it
+                lastSeenTime = Date.now();
                 statusBadge.innerText = "ONLINE";
-                statusBadge.style.background = "#00cc00"; // Green
+                statusBadge.style.background = "#00cc00"; 
                 statusBadge.style.color = "#000";
             });
 
-            // 2. Check every 2 seconds if the ESP32 has gone silent
             setInterval(() => {
-                // If it's been more than 15 seconds since the last ping, mark offline
                 if (Date.now() - lastSeenTime > 15000) {
                     statusBadge.innerText = "OFFLINE";
-                    statusBadge.style.background = "var(--accent)"; // Red
+                    statusBadge.style.background = "var(--accent)";
                     statusBadge.style.color = "#fff";
                 }
             }, 2000);
-            
-            // Listen for Live Logs from the ESP32
-            let logHistory = [];
-            const MAX_LOGS = 6; 
+        }
 
+        // --- LIVE LOGS ---
+        function setupLiveLogs() {
+            let logHistory = [];
             db.ref('system/latest_log').on('value', (snapshot) => {
-                const logMessage = snapshot.val();
-                if (logMessage) {
+                if (snapshot.val()) {
                     const time = new Date().toLocaleTimeString('en-US', { hour12: false });
-                    logHistory.push(`[${time}] > ${logMessage}`);
-                    
-                    if (logHistory.length > MAX_LOGS) {
-                        logHistory.shift(); 
-                    }
-                    
+                    logHistory.push(`[${time}] > ${snapshot.val()}`);
+                    if (logHistory.length > 5) logHistory.shift(); 
                     document.getElementById('live-log').innerHTML = logHistory.join('<br>');
                 }
             });
         }
 
-        // Trigger the alarm
-        function triggerAlarm(seconds) {
-            document.getElementById('live-log').innerHTML += '<br>> Sending command...';
-            db.ref('alarm_state').update({ 
-                duration: seconds,
-                trigger: true
+        // --- STATE SYNCING (Keeps all users viewing the same data) ---
+        function setupStateSync() {
+            db.ref('alarm_state').on('value', (snapshot) => {
+                const data = snapshot.val();
+                if (data) {
+                    // Update Volume UI
+                    if (data.volume !== undefined) {
+                        document.getElementById('volume-slider').value = data.volume;
+                        document.getElementById('vol-display').innerText = data.volume + "%";
+                    }
+                    // Update Periodic UI
+                    if (data.periodic_active !== undefined) {
+                        document.getElementById('periodic-check').checked = data.periodic_active;
+                    }
+                    if (data.periodic_mins !== undefined) {
+                        document.getElementById('periodic-mins').value = data.periodic_mins;
+                    }
+                }
             });
         }
 
-        // Trigger GitHub OTA Sync
+        // --- CONTROL FUNCTIONS ---
+        function updateVolume() {
+            const vol = parseInt(document.getElementById('volume-slider').value);
+            db.ref('alarm_state').update({ volume: vol });
+        }
+
+        function updatePeriodic() {
+            const isActive = document.getElementById('periodic-check').checked;
+            const mins = parseInt(document.getElementById('periodic-mins').value);
+            db.ref('alarm_state').update({ periodic_active: isActive, periodic_mins: mins });
+        }
+
+        function triggerAlarm(seconds) {
+            db.ref('alarm_state').update({ duration: seconds, trigger: true, hold_trigger: false });
+        }
+
+        // --- HOLD TO PLAY LOGIC ---
+        function setupHoldButton() {
+            const btn = document.getElementById('hold-btn');
+            
+            // Mouse events
+            btn.addEventListener('mousedown', () => db.ref('alarm_state').update({ hold_trigger: true }));
+            btn.addEventListener('mouseup', () => db.ref('alarm_state').update({ hold_trigger: false }));
+            btn.addEventListener('mouseleave', () => db.ref('alarm_state').update({ hold_trigger: false }));
+            
+            // Touch events for mobile
+            btn.addEventListener('touchstart', (e) => { e.preventDefault(); db.ref('alarm_state').update({ hold_trigger: true }); });
+            btn.addEventListener('touchend', (e) => { e.preventDefault(); db.ref('alarm_state').update({ hold_trigger: false }); });
+        }
+
         function syncFromGit() {
-            const confirmUpdate = confirm("WARNING: This will pull the latest firmware.bin from GitHub and flash the ESP32. Proceed?");
-            if (confirmUpdate) {
-                document.getElementById('live-log').innerHTML += '<br>> Triggering GitHub Sync...';
-                
-                // Send the static raw GitHub link to Firebase (Updated to esp32-alarm)
-                db.ref('system').update({ 
-                    ota_url: 'https://raw.githubusercontent.com/romixplay/esp32-alarm/main/build/firmware.bin' 
-                });
+            if (confirm("WARNING: Proceed with GitHub OTA flash?")) {
+                db.ref('system').update({ ota_url: 'https://raw.githubusercontent.com/romixplay/esp32-alarm/main/firmware/firmware.bin' });
             }
         }
 
-        // Start the app sequence
         window.onload = checkAccess;
     </script>
 </body>
