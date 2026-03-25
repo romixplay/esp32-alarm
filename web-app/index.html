@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ALARM_CTRL // CAFE</title>
+    <title>UNTITLED // SAFE</title>
     <style>
-        /* Brutalist Aesthetic */
         :root { --bg: #ececec; --text: #000000; --accent: #ff0000; --terminal-bg: #111; --terminal-text: #0f0; }
         body { background-color: var(--bg); color: var(--text); font-family: 'Courier New', Courier, monospace; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 1rem; box-sizing: border-box; }
         .container { border: 4px solid var(--text); padding: 2rem; width: 100%; max-width: 450px; box-shadow: 8px 8px 0px var(--text); background: #fff; }
@@ -16,12 +15,18 @@
         input[type="range"] { width: 100%; margin-bottom: 1rem; }
         input[type="number"] { width: 60px; font-family: inherit; font-weight: bold; border: 2px solid var(--text); text-align: center; }
         button { background: transparent; border: 2px solid var(--text); padding: 0.75rem 1rem; font-family: inherit; font-weight: bold; font-size: 1rem; cursor: pointer; width: 100%; margin-bottom: 0.5rem; transition: all 0.1s; user-select: none; }
-        button:active { background: var(--text); color: var(--bg); transform: translate(2px, 2px); }
+        button:active:not(:disabled) { background: var(--text); color: var(--bg); transform: translate(2px, 2px); }
         button.danger { color: var(--accent); border-color: var(--accent); }
-        button.danger:active { background: var(--accent); color: #fff; }
+        button.danger:active:not(:disabled) { background: var(--accent); color: #fff; }
         button.hold-btn { background: var(--text); color: var(--bg); }
-        button.hold-btn:active { background: var(--accent); border-color: var(--accent); }
+        button.hold-btn:active:not(:disabled) { background: var(--accent); border-color: var(--accent); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; border-color: #999; color: #999; }
         .terminal { background-color: var(--terminal-bg); color: var(--terminal-text); padding: 1rem; font-size: 0.85rem; height: 100px; overflow-y: auto; border: 2px solid var(--text); display: flex; flex-direction: column; justify-content: flex-end; }
+        
+        /* Status Badge Colors */
+        .status-connecting { background: #888; color: #fff; }
+        .status-online { background: #00cc00; color: #000; }
+        .status-offline { background: var(--accent); color: #fff; }
     </style>
 </head>
 <body>
@@ -29,7 +34,7 @@
     <div class="container" id="app" style="display: none;">
         <h1>
             SYSTEM_CTRL
-            <span id="status-badge" style="background: var(--accent); color: #fff; padding: 2px 8px; font-size: 0.9rem; border: 2px solid var(--text);">OFFLINE</span>
+            <span id="status-badge" class="status-connecting" style="padding: 2px 8px; font-size: 0.9rem; border: 2px solid var(--text);">CONNECTING</span>
         </h1>
         
         <div class="control-group">
@@ -56,7 +61,7 @@
             </div>
         </div>
 
-        <div class="control-group" style="border-color: var(--accent);">
+        <div class="control-group" id="admin-panel" style="display: none; border-color: var(--accent);">
             <label style="color: var(--accent);">ADMIN: SYNC FIRMWARE</label>
             <button class="danger" onclick="syncFromGit()">PULL LATEST GITHUB BUILD</button>
         </div>
@@ -71,32 +76,45 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
     <script>
-        // --- 30-DAY SESSION SECURITY ---
-        const PASSCODE = "1234"; 
+        // --- ROLE-BASED ACCESS CONTROL (RBAC) ---
+        const ROLES = {
+            "1234": "USER",
+            "9999": "ADMIN"
+        };
         
         function checkAccess() {
             const exp = localStorage.getItem('session_exp');
-            // Check if token exists and is still valid
-            if (exp && Date.now() < parseInt(exp)) {
-                document.getElementById('app').style.display = 'block';
-                initFirebase();
+            const savedRole = localStorage.getItem('session_role');
+            
+            // Auto-login if session is valid
+            if (exp && Date.now() < parseInt(exp) && savedRole) {
+                grantAccess(savedRole);
                 return;
             }
 
+            // Prompt for passcode
             const entry = prompt("ENTER SYSTEM PASSCODE:");
-            if (entry === PASSCODE) {
-                // Set expiration to 30 days from now
+            if (ROLES[entry]) {
+                const role = ROLES[entry];
+                // Save session for 30 days
                 localStorage.setItem('session_exp', Date.now() + (30 * 24 * 60 * 60 * 1000));
-                document.getElementById('app').style.display = 'block';
-                initFirebase();
+                localStorage.setItem('session_role', role);
+                grantAccess(role);
             } else {
-                alert("ACCESS DENIED");
                 document.body.innerHTML = "<h2 style='text-align:center;'>ACCESS DENIED</h2>";
             }
         }
 
-        // --- FIREBASE CONFIG (String-split to bypass GitHub Scanner) ---
-        // REPLACE WITH YOUR ACTUAL KEY HALVES
+        function grantAccess(role) {
+            document.getElementById('app').style.display = 'block';
+            if (role === "ADMIN") {
+                document.getElementById('admin-panel').style.display = 'block';
+            }
+            initFirebase();
+        }
+
+        // --- FIREBASE CONFIG ---
+        // REPLACE WITH YOUR KEY HALVES
         const keyPart1 = "AIzaSyDabQ4ZNM"; 
         const keyPart2 = "Ufbloh9ePIudCoYfZeYf4ledA";
         
@@ -111,6 +129,7 @@
         };
 
         let db;
+        let isSystemOffline = true; // Prevents commands from sending if disconnected
 
         function initFirebase() {
             firebase.initializeApp(firebaseConfig);
@@ -122,25 +141,50 @@
             setupHoldButton();
         }
 
-        // --- HEARTBEAT MONITOR ---
+        // --- HEARTBEAT & CONNECTION SAFETY ---
+        function setUIStatus(statusStr) {
+            const badge = document.getElementById('status-badge');
+            badge.innerText = statusStr;
+            badge.className = ''; // Reset classes
+            
+            if (statusStr === "CONNECTING...") {
+                badge.classList.add('status-connecting');
+                isSystemOffline = true;
+            } else if (statusStr === "ONLINE") {
+                badge.classList.add('status-online');
+                isSystemOffline = false;
+            } else {
+                badge.classList.add('status-offline');
+                isSystemOffline = true;
+            }
+        }
+
         function setupHeartbeat() {
-            let lastSeenTime = Date.now(); // Assume online initially to prevent flashing
-            const statusBadge = document.getElementById('status-badge');
+            let lastSeenTime = 0;
+            setUIStatus("CONNECTING...");
 
             db.ref('system/last_ping').on('value', (snapshot) => {
-                lastSeenTime = Date.now();
-                statusBadge.innerText = "ONLINE";
-                statusBadge.style.background = "#00cc00"; 
-                statusBadge.style.color = "#000";
+                if (snapshot.exists()) {
+                    lastSeenTime = Date.now();
+                    setUIStatus("ONLINE");
+                }
             });
 
             setInterval(() => {
-                if (Date.now() - lastSeenTime > 15000) {
-                    statusBadge.innerText = "OFFLINE";
-                    statusBadge.style.background = "var(--accent)";
-                    statusBadge.style.color = "#fff";
+                // Only mark offline if we've received at least one ping previously AND 15s have passed
+                if (lastSeenTime > 0 && (Date.now() - lastSeenTime > 15000)) {
+                    setUIStatus("OFFLINE");
                 }
             }, 2000);
+        }
+
+        // --- SAFETY CHECK FOR COMMANDS ---
+        function safeExecute(commandFn) {
+            if (isSystemOffline) {
+                alert("SYSTEM UNREACHABLE: The alarm is currently offline or connecting. Commands cannot be sent.");
+                return;
+            }
+            commandFn();
         }
 
         // --- LIVE LOGS ---
@@ -156,17 +200,15 @@
             });
         }
 
-        // --- STATE SYNCING (Keeps all users viewing the same data) ---
+        // --- STATE SYNCING ---
         function setupStateSync() {
             db.ref('alarm_state').on('value', (snapshot) => {
                 const data = snapshot.val();
                 if (data) {
-                    // Update Volume UI
                     if (data.volume !== undefined) {
                         document.getElementById('volume-slider').value = data.volume;
                         document.getElementById('vol-display').innerText = data.volume + "%";
                     }
-                    // Update Periodic UI
                     if (data.periodic_active !== undefined) {
                         document.getElementById('periodic-check').checked = data.periodic_active;
                     }
@@ -177,40 +219,55 @@
             });
         }
 
-        // --- CONTROL FUNCTIONS ---
+        // --- CONTROL FUNCTIONS (Wrapped in Safety Checks) ---
         function updateVolume() {
-            const vol = parseInt(document.getElementById('volume-slider').value);
-            db.ref('alarm_state').update({ volume: vol });
+            safeExecute(() => {
+                const vol = parseInt(document.getElementById('volume-slider').value);
+                db.ref('alarm_state').update({ volume: vol });
+            });
         }
 
         function updatePeriodic() {
-            const isActive = document.getElementById('periodic-check').checked;
-            const mins = parseInt(document.getElementById('periodic-mins').value);
-            db.ref('alarm_state').update({ periodic_active: isActive, periodic_mins: mins });
+            safeExecute(() => {
+                const isActive = document.getElementById('periodic-check').checked;
+                const mins = parseInt(document.getElementById('periodic-mins').value);
+                db.ref('alarm_state').update({ periodic_active: isActive, periodic_mins: mins });
+            });
         }
 
         function triggerAlarm(seconds) {
-            db.ref('alarm_state').update({ duration: seconds, trigger: true, hold_trigger: false });
+            safeExecute(() => {
+                db.ref('alarm_state').update({ duration: seconds, trigger: true, hold_trigger: false });
+            });
         }
 
-        // --- HOLD TO PLAY LOGIC ---
         function setupHoldButton() {
             const btn = document.getElementById('hold-btn');
             
-            // Mouse events
-            btn.addEventListener('mousedown', () => db.ref('alarm_state').update({ hold_trigger: true }));
-            btn.addEventListener('mouseup', () => db.ref('alarm_state').update({ hold_trigger: false }));
-            btn.addEventListener('mouseleave', () => db.ref('alarm_state').update({ hold_trigger: false }));
-            
-            // Touch events for mobile
-            btn.addEventListener('touchstart', (e) => { e.preventDefault(); db.ref('alarm_state').update({ hold_trigger: true }); });
-            btn.addEventListener('touchend', (e) => { e.preventDefault(); db.ref('alarm_state').update({ hold_trigger: false }); });
+            const pressAction = (e) => { 
+                if(e) e.preventDefault(); 
+                if (isSystemOffline) return; // Don't alert on hold, just ignore it to avoid spam
+                db.ref('alarm_state').update({ hold_trigger: true }); 
+            };
+            const releaseAction = (e) => { 
+                if(e) e.preventDefault(); 
+                if (isSystemOffline) return;
+                db.ref('alarm_state').update({ hold_trigger: false }); 
+            };
+
+            btn.addEventListener('mousedown', pressAction);
+            btn.addEventListener('mouseup', releaseAction);
+            btn.addEventListener('mouseleave', releaseAction);
+            btn.addEventListener('touchstart', pressAction);
+            btn.addEventListener('touchend', releaseAction);
         }
 
         function syncFromGit() {
-            if (confirm("WARNING: Proceed with GitHub OTA flash?")) {
-                db.ref('system').update({ ota_url: 'https://raw.githubusercontent.com/romixplay/esp32-alarm/main/firmware/firmware.bin' });
-            }
+            safeExecute(() => {
+                if (confirm("WARNING: Proceed with GitHub OTA flash?")) {
+                    db.ref('system').update({ ota_url: 'https://raw.githubusercontent.com/romixplay/esp32-alarm/main/firmware/firmware.bin' });
+                }
+            });
         }
 
         window.onload = checkAccess;
