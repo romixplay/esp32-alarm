@@ -76,64 +76,72 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
     <script>
-        // --- ROLE-BASED ACCESS CONTROL (RBAC) ---
-        const ROLES = {
-            "1234": "USER",
-            "9999": "ADMIN"
-        };
-        
-        function checkAccess() {
-            const exp = localStorage.getItem('session_exp');
-            const savedRole = localStorage.getItem('session_role');
-            
-            // Auto-login if session is valid
-            if (exp && Date.now() < parseInt(exp) && savedRole) {
-                grantAccess(savedRole);
-                return;
-            }
-
-            // Prompt for passcode
-            const entry = prompt("ENTER SYSTEM PASSCODE:");
-            if (ROLES[entry]) {
-                const role = ROLES[entry];
-                // Save session for 30 days
-                localStorage.setItem('session_exp', Date.now() + (30 * 24 * 60 * 60 * 1000));
-                localStorage.setItem('session_role', role);
-                grantAccess(role);
-            } else {
-                document.body.innerHTML = "<h2 style='text-align:center;'>ACCESS DENIED</h2>";
-            }
-        }
-
-        function grantAccess(role) {
-            document.getElementById('app').style.display = 'block';
-            if (role === "ADMIN") {
-                document.getElementById('admin-panel').style.display = 'block';
-            }
-            initFirebase();
-        }
-
         // --- FIREBASE CONFIG ---
-        // REPLACE WITH YOUR KEY HALVES
         const keyPart1 = "AIzaSyDabQ4ZNM"; 
         const keyPart2 = "Ufbloh9ePIudCoYfZeYf4ledA";
         
         const firebaseConfig = {
             apiKey: keyPart1 + keyPart2,
-            authDomain: "untitledcafe-bfd05.firebaseapp.com",
             databaseURL: "https://untitledcafe-bfd05-default-rtdb.europe-west1.firebasedatabase.app",
-            projectId: "untitledcafe-bfd05",
-            storageBucket: "untitledcafe-bfd05.appspot.com",
-            messagingSenderId: "421230777839",
-            appId: "1:421230777839:web:f8d2c2b5b01dd562bb121a"
+            projectId: "untitledcafe-bfd05"
         };
 
         let db;
-        let isSystemOffline = true; // Prevents commands from sending if disconnected
+        let cloudFunc;
+        let isSystemOffline = true;
+
+        // Session variables
+        let currentPin = localStorage.getItem('session_pin');
+        let currentRole = localStorage.getItem('session_role');
+
+        function checkAccess() {
+            if (currentPin && currentRole) {
+                grantAccess(currentRole);
+                return;
+            }
+
+            const entry = prompt("ENTER SYSTEM PASSCODE:");
+            if (!entry) return showDenied();
+
+            // Store the raw PIN. We trust the Cloud Function to verify it.
+            // If they type a fake PIN, the UI will load, but all buttons will fail.
+            if (entry === "9999") {
+                saveSession(entry, "ADMIN");
+                grantAccess("ADMIN");
+            } else if (entry === "1234") {
+                saveSession(entry, "USER");
+                grantAccess("USER");
+            } else {
+                showDenied();
+            }
+        }
+
+        function saveSession(pin, role) {
+            localStorage.setItem('session_pin', pin);
+            localStorage.setItem('session_role', role);
+            currentPin = pin;
+            currentRole = role;
+        }
+
+        function clearSession() {
+            localStorage.clear();
+            location.reload();
+        }
+
+        function showDenied() { document.body.innerHTML = "<h2 style='text-align:center;'>ACCESS DENIED</h2>"; }
+
+        function grantAccess(role) {
+            document.getElementById('app').style.display = 'block';
+            if (role === "ADMIN") document.getElementById('admin-panel').style.display = 'block';
+            initFirebase();
+        }
 
         function initFirebase() {
             firebase.initializeApp(firebaseConfig);
             db = firebase.database();
+            
+            // Initialize Cloud Functions
+            cloudFunc = firebase.app().functions('europe-west1'); // Match your DB region if needed, otherwise leave default
             
             setupHeartbeat();
             setupLiveLogs();
@@ -141,53 +149,56 @@
             setupHoldButton();
         }
 
-        // --- HEARTBEAT & CONNECTION SAFETY ---
+        // --- BACKEND API CALLER ---
+        async function sendSecureCommand(actionName, payloadData = {}) {
+            if (isSystemOffline) { 
+                alert("SYSTEM UNREACHABLE: The alarm is offline."); 
+                return; 
+            }
+
+            const secureCommand = firebase.functions().httpsCallable('secureCommand');
+            
+            try {
+                // We send the PIN with every single request to the backend
+                const response = await secureCommand({
+                    pin: currentPin,
+                    action: actionName,
+                    payload: payloadData
+                });
+                console.log(response.data.message);
+            } catch (error) {
+                alert(`ERROR: ${error.message}`);
+                if (error.code === "functions/permission-denied") {
+                    clearSession(); // Boot them out if PIN was revoked/changed
+                }
+            }
+        }
+
+        // --- HEARTBEAT & LOGS (Same as before) ---
         function setUIStatus(statusStr) {
             const badge = document.getElementById('status-badge');
             badge.innerText = statusStr;
-            badge.className = ''; // Reset classes
-            
-            if (statusStr === "CONNECTING...") {
-                badge.classList.add('status-connecting');
-                isSystemOffline = true;
-            } else if (statusStr === "ONLINE") {
-                badge.classList.add('status-online');
-                isSystemOffline = false;
-            } else {
-                badge.classList.add('status-offline');
-                isSystemOffline = true;
-            }
+            badge.className = ''; 
+            if (statusStr === "CONNECTING...") { badge.classList.add('status-connecting'); isSystemOffline = true; } 
+            else if (statusStr === "ONLINE") { badge.classList.add('status-online'); isSystemOffline = false; } 
+            else { badge.classList.add('status-offline'); isSystemOffline = true; }
         }
 
         function setupHeartbeat() {
-            let lastSeenTime = 0;
             setUIStatus("CONNECTING...");
-
             db.ref('system/last_ping').on('value', (snapshot) => {
-                if (snapshot.exists()) {
-                    lastSeenTime = Date.now();
-                    setUIStatus("ONLINE");
+                if (snapshot.exists()) { 
+                    if (Date.now() - snapshot.val() < 15000) setUIStatus("ONLINE");
+                    else setUIStatus("OFFLINE");
                 }
             });
-
             setInterval(() => {
-                // Only mark offline if we've received at least one ping previously AND 15s have passed
-                if (lastSeenTime > 0 && (Date.now() - lastSeenTime > 15000)) {
-                    setUIStatus("OFFLINE");
-                }
-            }, 2000);
+                db.ref('system/last_ping').once('value').then((snapshot) => {
+                    if (snapshot.exists() && (Date.now() - snapshot.val() > 15000)) setUIStatus("OFFLINE");
+                });
+            }, 5000);
         }
 
-        // --- SAFETY CHECK FOR COMMANDS ---
-        function safeExecute(commandFn) {
-            if (isSystemOffline) {
-                alert("SYSTEM UNREACHABLE: The alarm is currently offline or connecting. Commands cannot be sent.");
-                return;
-            }
-            commandFn();
-        }
-
-        // --- LIVE LOGS ---
         function setupLiveLogs() {
             let logHistory = [];
             db.ref('system/latest_log').on('value', (snapshot) => {
@@ -200,7 +211,6 @@
             });
         }
 
-        // --- STATE SYNCING ---
         function setupStateSync() {
             db.ref('alarm_state').on('value', (snapshot) => {
                 const data = snapshot.val();
@@ -209,68 +219,48 @@
                         document.getElementById('volume-slider').value = data.volume;
                         document.getElementById('vol-display').innerText = data.volume + "%";
                     }
-                    if (data.periodic_active !== undefined) {
-                        document.getElementById('periodic-check').checked = data.periodic_active;
-                    }
-                    if (data.periodic_mins !== undefined) {
-                        document.getElementById('periodic-mins').value = data.periodic_mins;
-                    }
+                    if (data.periodic_active !== undefined) { document.getElementById('periodic-check').checked = data.periodic_active; }
+                    if (data.periodic_mins !== undefined) { document.getElementById('periodic-mins').value = data.periodic_mins; }
                 }
             });
         }
 
-        // --- CONTROL FUNCTIONS (Wrapped in Safety Checks) ---
-        function updateVolume() {
-            safeExecute(() => {
-                const vol = parseInt(document.getElementById('volume-slider').value);
-                db.ref('alarm_state').update({ volume: vol });
-            });
+        // --- SECURE UI CONTROLS ---
+        function updateVolume() { 
+            sendSecureCommand('update_volume', { volume: parseInt(document.getElementById('volume-slider').value) }); 
         }
-
-        function updatePeriodic() {
-            safeExecute(() => {
-                const isActive = document.getElementById('periodic-check').checked;
-                const mins = parseInt(document.getElementById('periodic-mins').value);
-                db.ref('alarm_state').update({ periodic_active: isActive, periodic_mins: mins });
-            });
+        
+        function updatePeriodic() { 
+            sendSecureCommand('update_periodic', { 
+                active: document.getElementById('periodic-check').checked, 
+                mins: parseInt(document.getElementById('periodic-mins').value) 
+            }); 
         }
-
-        function triggerAlarm(seconds) {
-            safeExecute(() => {
-                db.ref('alarm_state').update({ duration: seconds, trigger: true, hold_trigger: false });
-            });
+        
+        function triggerAlarm(seconds) { 
+            sendSecureCommand('trigger_alarm', { duration: seconds }); 
         }
 
         function setupHoldButton() {
             const btn = document.getElementById('hold-btn');
-            
-            const pressAction = (e) => { 
-                if(e) e.preventDefault(); 
-                if (isSystemOffline) return; // Don't alert on hold, just ignore it to avoid spam
-                db.ref('alarm_state').update({ hold_trigger: true }); 
-            };
-            const releaseAction = (e) => { 
-                if(e) e.preventDefault(); 
-                if (isSystemOffline) return;
-                db.ref('alarm_state').update({ hold_trigger: false }); 
-            };
-
-            btn.addEventListener('mousedown', pressAction);
-            btn.addEventListener('mouseup', releaseAction);
-            btn.addEventListener('mouseleave', releaseAction);
-            btn.addEventListener('touchstart', pressAction);
-            btn.addEventListener('touchend', releaseAction);
+            const pressAction = (e) => { if(e) e.preventDefault(); sendSecureCommand('hold_alarm', { active: true }); };
+            const releaseAction = (e) => { if(e) e.preventDefault(); sendSecureCommand('hold_alarm', { active: false }); };
+            btn.addEventListener('mousedown', pressAction); btn.addEventListener('mouseup', releaseAction); btn.addEventListener('mouseleave', releaseAction);
+            btn.addEventListener('touchstart', pressAction); btn.addEventListener('touchend', releaseAction);
         }
 
         function syncFromGit() {
-            safeExecute(() => {
-                if (confirm("WARNING: Proceed with GitHub OTA flash?")) {
-                    db.ref('system').update({ ota_url: 'https://raw.githubusercontent.com/romixplay/esp32-alarm/main/firmware/firmware.bin' });
-                }
-            });
+            if (confirm("WARNING: Proceed with GitHub OTA flash?")) {
+                sendSecureCommand('sync_firmware', { url: 'https://raw.githubusercontent.com/romixplay/esp32-alarm/main/firmware/firmware.bin' });
+            }
         }
 
-        window.onload = checkAccess;
+        // --- INIT ---
+        // We need to add the Cloud Functions script to the HTML head/body dynamically or statically
+        const script = document.createElement('script');
+        script.src = "https://www.gstatic.com/firebasejs/8.10.1/firebase-functions.js";
+        script.onload = checkAccess;
+        document.head.appendChild(script);
     </script>
 </body>
 </html>

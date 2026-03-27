@@ -140,21 +140,34 @@ void loop() {
     // 1. HEARTBEAT
     if (millis() - lastHeartbeat > heartbeatInterval) {
       lastHeartbeat = millis();
-      Firebase.RTDB.setInt(&fbdo, "/system/last_ping", millis());
+      // Tell Firebase to insert its own official server timestamp
+      Firebase.RTDB.setTimestamp(&fbdo, "/system/last_ping");
     }
 
     // 2. HTTP OTA CHECK
     if (Firebase.RTDB.getString(&fbdo, "/system/ota_url")) {
       String ota_url = fbdo.to<String>();
       if (ota_url.length() > 10) {
-        logToCloud("OTA Command received! Starting download...");
+        logToCloud("OTA Command received! Prepping system for download...");
         Firebase.RTDB.setString(&fbdo, "/system/ota_url", ""); // Clear URL instantly
         
+        // Force the audio to stop to free up CPU/RAM for the SSL handshake
+        isPlaying = false;
+        digitalWrite(PIN_AMP_SD, LOW);
+        delay(500); // Give the system a moment to settle
+        
+        // Setup Secure Client with extended timeouts
         WiFiClientSecure client;
         client.setInsecure();
+        client.setTimeout(15000); // Give GitHub 15 seconds to respond
+        
         t_httpUpdate_return ret = httpUpdate.update(client, ota_url);
         
-        if(ret == HTTP_UPDATE_OK) { logToCloud("OTA SUCCESS! Rebooting..."); }
+        if(ret == HTTP_UPDATE_OK) { 
+          logToCloud("OTA SUCCESS! Rebooting..."); 
+        } else {
+          logToCloud("OTA FAILED: " + httpUpdate.getLastErrorString());
+        }
       }
     }
 
