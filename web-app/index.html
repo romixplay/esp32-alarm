@@ -140,8 +140,8 @@
             firebase.initializeApp(firebaseConfig);
             db = firebase.database();
             
-            // Initialize Cloud Functions
-            cloudFunc = firebase.app().functions('europe-west1'); // Match your DB region if needed, otherwise leave default
+            // STRICT ROUTING: Force it to look at the exact server where CLI deployed it
+            cloudFunc = firebase.app().functions('us-central1'); 
             
             setupHeartbeat();
             setupLiveLogs();
@@ -149,17 +149,16 @@
             setupHoldButton();
         }
 
-        // --- BACKEND API CALLER ---
         async function sendSecureCommand(actionName, payloadData = {}) {
             if (isSystemOffline) { 
                 alert("SYSTEM UNREACHABLE: The alarm is offline."); 
                 return; 
             }
 
-            const secureCommand = firebase.functions().httpsCallable('secureCommand');
+            // USE THE STRICT ROUTING VARIABLE HERE
+            const secureCommand = cloudFunc.httpsCallable('secureCommand');
             
             try {
-                // We send the PIN with every single request to the backend
                 const response = await secureCommand({
                     pin: currentPin,
                     action: actionName,
@@ -167,9 +166,10 @@
                 });
                 console.log(response.data.message);
             } catch (error) {
-                alert(`ERROR: ${error.message}`);
-                if (error.code === "functions/permission-denied") {
-                    clearSession(); // Boot them out if PIN was revoked/changed
+                // Now it will show us the real error!
+                alert(`BACKEND ERROR: ${error.message}`);
+                if (error.message.includes("ACCESS DENIED")) {
+                    clearSession(); 
                 }
             }
         }

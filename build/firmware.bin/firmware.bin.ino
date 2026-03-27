@@ -13,8 +13,8 @@
 // --- CREDENTIALS ---
 #define WIFI_SSID "Sadan"
 #define WIFI_PASSWORD "shamanshaman"
-// REPLACE THESE WITH YOUR KEYS (No need to split them in C++, only in JS)
-#define API_KEY "AIzaSyDAbQ4ZNMUfbloh9ePIudCoYFZeYf4ledA"
+// REPLACE API_KEY WITH YOUR SECRET
+#define DATABASE_SECRET "l8mdVlybE4p0BDRcj5Z0n2lVAToOr1oRQ8TTMu53"
 #define DATABASE_URL "https://untitledcafe-bfd05-default-rtdb.europe-west1.firebasedatabase.app"
 
 // --- HARDWARE PINS ---
@@ -94,14 +94,12 @@ void setup() {
   ArduinoOTA.setHostname("cafe-alarm-esp32c6");
   ArduinoOTA.begin();
 
-  config.api_key = API_KEY;
   config.database_url = DATABASE_URL;
-  if (Firebase.signUp(&config, &auth, "", "")) {
-    signupOK = true;
-  }
-  config.token_status_callback = tokenStatusCallback; 
+  config.signer.tokens.legacy_token = DATABASE_SECRET; // This gives the ESP32 God Mode
+  
   Firebase.begin(&config, &auth);
   Firebase.reconnectWiFi(true);
+  signupOK = true; // Manually flag that we are good to go
 
   // Setup I2S for MAX98357A
   i2s_config_t i2s_config = {
@@ -149,17 +147,22 @@ void loop() {
       String ota_url = fbdo.to<String>();
       if (ota_url.length() > 10) {
         logToCloud("OTA Command received! Prepping system for download...");
-        Firebase.RTDB.setString(&fbdo, "/system/ota_url", ""); // Clear URL instantly
         
-        // Force the audio to stop to free up CPU/RAM for the SSL handshake
+        // Attempt to clear the URL so we don't loop if we crash
+        if(!Firebase.RTDB.setString(&fbdo, "/system/ota_url", "")) {
+          Serial.println("WARNING: Failed to clear OTA URL from Database!");
+        }
+        
         isPlaying = false;
         digitalWrite(PIN_AMP_SD, LOW);
-        delay(500); // Give the system a moment to settle
+        delay(500); 
         
-        // Setup Secure Client with extended timeouts
         WiFiClientSecure client;
         client.setInsecure();
-        client.setTimeout(15000); // Give GitHub 15 seconds to respond
+        client.setTimeout(15000); 
+        
+        // THIS IS THE FIX: Tell the ESP32 to follow GitHub's CDN redirects
+        httpUpdate.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
         
         t_httpUpdate_return ret = httpUpdate.update(client, ota_url);
         
