@@ -148,28 +148,36 @@ void loop() {
       if (ota_url.length() > 10) {
         logToCloud("OTA Command received! Prepping system for download...");
         
-        // Attempt to clear the URL so we don't loop if we crash
-        if(!Firebase.RTDB.setString(&fbdo, "/system/ota_url", "")) {
-          Serial.println("WARNING: Failed to clear OTA URL from Database!");
-        }
-        
-        isPlaying = false;
-        digitalWrite(PIN_AMP_SD, LOW);
-        delay(500); 
-        
-        WiFiClientSecure client;
-        client.setInsecure();
-        client.setTimeout(15000); 
-        
-        // THIS IS THE FIX: Tell the ESP32 to follow GitHub's CDN redirects
-        httpUpdate.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-        
-        t_httpUpdate_return ret = httpUpdate.update(client, ota_url);
-        
-        if(ret == HTTP_UPDATE_OK) { 
-          logToCloud("OTA SUCCESS! Rebooting..."); 
+        // 1. Clear the URL from Firebase FIRST. 
+        // If it fails to clear, we ABORT to prevent an infinite crash loop.
+        if(Firebase.RTDB.setString(&fbdo, "/system/ota_url", "")) {
+          logToCloud("URL cleared. Freeing up RAM for SSL...");
+          
+          // 2. The Magic Bullet: Completely uninstall the Audio driver to free up RAM
+          isPlaying = false;
+          digitalWrite(PIN_AMP_SD, LOW);
+          i2s_driver_uninstall(I2S_NUM_0); 
+          delay(1000); // Give the processor a second to clean up the garbage memory
+          
+          // 3. Execute the Update
+          WiFiClientSecure client;
+          client.setInsecure();
+          client.setTimeout(15000); 
+          httpUpdate.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+          
+          t_httpUpdate_return ret = httpUpdate.update(client, ota_url);
+          
+          // 4. Handle Results & Reboot
+          if(ret == HTTP_UPDATE_OK) { 
+            Serial.println("OTA SUCCESS! Rebooting..."); 
+            ESP.restart();
+          } else {
+            logToCloud("OTA FAILED: " + httpUpdate.getLastErrorString());
+            // We MUST reboot even if it fails, because we uninstalled the audio driver!
+            ESP.restart(); 
+          }
         } else {
-          logToCloud("OTA FAILED: " + httpUpdate.getLastErrorString());
+          logToCloud("CRITICAL: Failed to clear URL. Aborting OTA.");
         }
       }
     }
