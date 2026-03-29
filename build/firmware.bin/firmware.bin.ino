@@ -11,8 +11,8 @@
 #include "addons/RTDBHelper.h"
 
 // --- CREDENTIALS ---
-#define WIFI_SSID "Ra"
-#define WIFI_PASSWORD "88888888"
+#define WIFI_SSID "Sadan"
+#define WIFI_PASSWORD "shamanshaman"
 // REPLACE API_KEY WITH YOUR SECRET
 #define DATABASE_SECRET "l8mdVlybE4p0BDRcj5Z0n2lVAToOr1oRQ8TTMu53"
 #define DATABASE_URL "https://untitledcafe-bfd05-default-rtdb.europe-west1.firebasedatabase.app"
