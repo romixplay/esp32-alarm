@@ -149,13 +149,16 @@
             setupHoldButton();
         }
 
+        // --- BACKEND API CALLER ---
         async function sendSecureCommand(actionName, payloadData = {}) {
             if (isSystemOffline) { 
-                alert("SYSTEM UNREACHABLE: The alarm is offline."); 
+                // Print to the terminal instead of freezing the screen with an alert
+                const logBox = document.getElementById('live-log');
+                logBox.innerHTML += `<br><span style="color: var(--accent);">[ERROR] System offline. Command ignored.</span>`;
+                logBox.scrollTop = logBox.scrollHeight; // Auto-scroll to bottom
                 return; 
             }
 
-            // USE THE STRICT ROUTING VARIABLE HERE
             const secureCommand = cloudFunc.httpsCallable('secureCommand');
             
             try {
@@ -166,7 +169,6 @@
                 });
                 console.log(response.data.message);
             } catch (error) {
-                // Now it will show us the real error!
                 alert(`BACKEND ERROR: ${error.message}`);
                 if (error.message.includes("ACCESS DENIED")) {
                     clearSession(); 

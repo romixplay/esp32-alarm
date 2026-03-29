@@ -11,8 +11,8 @@
 #include "addons/RTDBHelper.h"
 
 // --- CREDENTIALS ---
-#define WIFI_SSID "Sadan"
-#define WIFI_PASSWORD "shamanshaman"
+#define WIFI_SSID "Ra"
+#define WIFI_PASSWORD "88888888"
 // REPLACE API_KEY WITH YOUR SECRET
 #define DATABASE_SECRET "l8mdVlybE4p0BDRcj5Z0n2lVAToOr1oRQ8TTMu53"
 #define DATABASE_URL "https://untitledcafe-bfd05-default-rtdb.europe-west1.firebasedatabase.app"
@@ -146,39 +146,35 @@ void loop() {
     if (Firebase.RTDB.getString(&fbdo, "/system/ota_url")) {
       String ota_url = fbdo.to<String>();
       if (ota_url.length() > 10) {
-        logToCloud("OTA Command received! Prepping system for download...");
+        logToCloud("OTA Triggered! Freeing memory...");
         
-        // 1. Clear the URL from Firebase FIRST. 
-        // If it fails to clear, we ABORT to prevent an infinite crash loop.
-        if(Firebase.RTDB.setString(&fbdo, "/system/ota_url", "")) {
-          logToCloud("URL cleared. Freeing up RAM for SSL...");
-          
-          // 2. The Magic Bullet: Completely uninstall the Audio driver to free up RAM
-          isPlaying = false;
-          digitalWrite(PIN_AMP_SD, LOW);
-          i2s_driver_uninstall(I2S_NUM_0); 
-          delay(1000); // Give the processor a second to clean up the garbage memory
-          
-          // 3. Execute the Update
-          WiFiClientSecure client;
-          client.setInsecure();
-          client.setTimeout(15000); 
-          httpUpdate.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-          
-          t_httpUpdate_return ret = httpUpdate.update(client, ota_url);
-          
-          // 4. Handle Results & Reboot
-          if(ret == HTTP_UPDATE_OK) { 
-            Serial.println("OTA SUCCESS! Rebooting..."); 
-            ESP.restart();
-          } else {
-            logToCloud("OTA FAILED: " + httpUpdate.getLastErrorString());
-            // We MUST reboot even if it fails, because we uninstalled the audio driver!
-            ESP.restart(); 
-          }
+        // 1. Clear the URL so we don't loop
+        Firebase.RTDB.setString(&fbdo, "/system/ota_url", "");
+        
+        // 2. WAIT to ensure Firebase processes the deletion before we spike the CPU
+        delay(3000); 
+        
+        // 3. Nuke Audio to free RAM
+        isPlaying = false;
+        digitalWrite(PIN_AMP_SD, LOW);
+        i2s_driver_uninstall(I2S_NUM_0); 
+        delay(1000); 
+        
+        // 4. Execute the Update
+        WiFiClientSecure client;
+        client.setInsecure();
+        client.setTimeout(15000); 
+        httpUpdate.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+        
+        t_httpUpdate_return ret = httpUpdate.update(client, ota_url);
+        
+        // 5. Always restart after touching the audio driver/SSL layer
+        if(ret == HTTP_UPDATE_OK) { 
+          Serial.println("OTA SUCCESS!"); 
         } else {
-          logToCloud("CRITICAL: Failed to clear URL. Aborting OTA.");
+          Serial.println("OTA FAILED: " + httpUpdate.getLastErrorString());
         }
+        ESP.restart(); 
       }
     }
 
