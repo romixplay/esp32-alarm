@@ -80,6 +80,8 @@ void audioTask(void * pvParameters) {
 }
 // =========================================================================
 
+unsigned long lastFirebasePoll = 0;
+
 void setup() {
   Serial.begin(115200);
   
@@ -135,94 +137,86 @@ void loop() {
 
   if (Firebase.ready() && signupOK) {
     
-    // 1. HEARTBEAT
-    if (millis() - lastHeartbeat > heartbeatInterval) {
-      lastHeartbeat = millis();
-      // Tell Firebase to insert its own official server timestamp
-      Firebase.RTDB.setTimestamp(&fbdo, "/system/last_ping");
-    }
-
-    // 2. HTTP OTA CHECK
-    if (Firebase.RTDB.getString(&fbdo, "/system/ota_url")) {
-      String ota_url = fbdo.to<String>();
-      if (ota_url.length() > 10) {
-        logToCloud("OTA Triggered! Freeing memory...");
-        
-        // 1. Clear the URL so we don't loop
-        Firebase.RTDB.setString(&fbdo, "/system/ota_url", "");
-        
-        // 2. WAIT to ensure Firebase processes the deletion before we spike the CPU
-        delay(3000); 
-        
-        // 3. Nuke Audio to free RAM
-        isPlaying = false;
-        digitalWrite(PIN_AMP_SD, LOW);
-        i2s_driver_uninstall(I2S_NUM_0); 
-        delay(1000); 
-        
-        // 4. Execute the Update
-        WiFiClientSecure client;
-        client.setInsecure();
-        client.setTimeout(15000); 
-        httpUpdate.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-        
-        t_httpUpdate_return ret = httpUpdate.update(client, ota_url);
-        
-        // 5. Always restart after touching the audio driver/SSL layer
-        if(ret == HTTP_UPDATE_OK) { 
-          Serial.println("OTA SUCCESS!"); 
-        } else {
-          Serial.println("OTA FAILED: " + httpUpdate.getLastErrorString());
-        }
-        ESP.restart(); 
-      }
-    }
-
-    // 3. FETCH STATE (Get everything as a single JSON blob for speed)
-    if (Firebase.RTDB.getJSON(&fbdo, "/alarm_state")) {
-      StaticJsonDocument<512> doc;
-      deserializeJson(doc, fbdo.to<String>());
-
-      // Apply Volume (Convert 0-100 to 0.0-1.0 float)
-      if (doc.containsKey("volume")) {
-        int v = doc["volume"];
-        currentVolume = constrain(v, 0, 100) / 100.0;
-      }
-
-      // Check Periodic Settings
-      if (doc.containsKey("periodic_active")) periodicActive = doc["periodic_active"];
-      if (doc.containsKey("periodic_mins")) periodicMins = doc["periodic_mins"];
-
-      // Check Hold Trigger
-      if (doc.containsKey("hold_trigger")) holdTriggerActive = doc["hold_trigger"];
-
-      // Check Timed Trigger (Standard Sound Alarm button)
-      if (doc.containsKey("trigger") && doc["trigger"] == true) {
-        int duration = doc["duration"] ? doc["duration"].as<int>() : 3;
-        timedPlayEndTime = millis() + (duration * 1000);
-        logToCloud("Timed alarm triggered for " + String(duration) + "s.");
-        
-        // Instantly reset the trigger in DB so it doesn't loop
-        Firebase.RTDB.setBool(&fbdo, "/alarm_state/trigger", false); 
-      }
-    }
-
-    // 4. PERIODIC BEEP LOGIC
-    if (periodicActive && (millis() - lastPeriodicBeep > (periodicMins * 60000))) {
-      lastPeriodicBeep = millis();
-      timedPlayEndTime = millis() + 1000; // 1-second short beep
-      logToCloud("Periodic beep triggered.");
-    }
-
-    // 5. EVALUATE PLAY STATE
-    // The alarm should make noise IF the hold button is down OR the timed alarm is still running
+    // ==========================================
+    // 1. FAST HARDWARE LOGIC (Runs every 50ms)
+    // ==========================================
+    
+    // Evaluate if the alarm should be making noise right now
     if (holdTriggerActive || (millis() < timedPlayEndTime)) {
       isPlaying = true;
     } else {
       isPlaying = false;
     }
 
-    // Polling delay (200ms is fast enough for UI responsiveness, slow enough not to spam Firebase)
-    delay(1000); 
+    // Periodic Beep Logic
+    if (periodicActive && (millis() - lastPeriodicBeep > (periodicMins * 60000))) {
+      lastPeriodicBeep = millis();
+      timedPlayEndTime = millis() + 1000; 
+      logToCloud("Periodic beep triggered.");
+    }
+
+
+    // ==========================================
+    // 2. SLOW NETWORK LOGIC (Runs every 3 seconds)
+    // ==========================================
+    if (millis() - lastFirebasePoll > 3000) {
+      lastFirebasePoll = millis();
+
+      // A. HEARTBEAT
+      if (millis() - lastHeartbeat > heartbeatInterval) {
+        lastHeartbeat = millis();
+        Firebase.RTDB.setTimestamp(&fbdo, "/system/last_ping");
+      }
+
+      // B. HTTP OTA CHECK
+      if (Firebase.RTDB.getString(&fbdo, "/system/ota_url")) {
+        String ota_url = fbdo.to<String>();
+        if (ota_url.length() > 10) {
+          logToCloud("OTA Triggered! Freeing memory...");
+          Firebase.RTDB.setString(&fbdo, "/system/ota_url", "");
+          delay(3000); 
+          
+          isPlaying = false;
+          digitalWrite(PIN_AMP_SD, LOW);
+          i2s_driver_uninstall(I2S_NUM_0); 
+          delay(1000); 
+          
+          WiFiClientSecure client;
+          client.setInsecure();
+          client.setTimeout(15000); 
+          httpUpdate.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+          
+          t_httpUpdate_return ret = httpUpdate.update(client, ota_url);
+          
+          if(ret == HTTP_UPDATE_OK) { Serial.println("OTA SUCCESS!"); } 
+          else { Serial.println("OTA FAILED: " + httpUpdate.getLastErrorString()); }
+          ESP.restart(); 
+        }
+      }
+
+      // C. FETCH STATE
+      if (Firebase.RTDB.getJSON(&fbdo, "/alarm_state")) {
+        StaticJsonDocument<512> doc;
+        deserializeJson(doc, fbdo.to<String>());
+
+        if (doc.containsKey("volume")) {
+          int v = doc["volume"];
+          currentVolume = constrain(v, 0, 100) / 100.0;
+        }
+        if (doc.containsKey("periodic_active")) periodicActive = doc["periodic_active"];
+        if (doc.containsKey("periodic_mins")) periodicMins = doc["periodic_mins"];
+        if (doc.containsKey("hold_trigger")) holdTriggerActive = doc["hold_trigger"];
+
+        if (doc.containsKey("trigger") && doc["trigger"] == true) {
+          int duration = doc["duration"] ? doc["duration"].as<int>() : 3;
+          timedPlayEndTime = millis() + (duration * 1000);
+          logToCloud("Timed alarm triggered for " + String(duration) + "s.");
+          Firebase.RTDB.setBool(&fbdo, "/alarm_state/trigger", false); 
+        }
+      }
+    }
+
+    // Give FreeRTOS breathing room, but keep UI physically responsive
+    delay(50); 
   }
 }

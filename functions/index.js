@@ -5,16 +5,18 @@ admin.initializeApp({
   databaseURL: "https://untitledcafe-bfd05-default-rtdb.europe-west1.firebasedatabase.app"
 });
 
-// ONE SINGLE SYSTEM PASSCODE
 const SYSTEM_PIN = "1234";
 
 exports.secureCommand = functions.https.onCall(async (data, context) => {
   try {
     const { pin, action, payload } = data;
 
-    // Coerce pin to string just in case JSON sent it as an integer over the network
-    if (String(pin) !== SYSTEM_PIN) {
-      throw new Error("ACCESS DENIED: Invalid Passcode.");
+    // Clean the input of any accidental spaces and force it to a string
+    const receivedPin = String(pin).trim();
+
+    if (receivedPin !== SYSTEM_PIN) {
+      // THIS IS THE MAGIC LINE: It will now tell you EXACTLY what it received
+      throw new Error(`ACCESS DENIED. Server received: '${receivedPin}'`);
     }
 
     const db = admin.database();
