@@ -5,18 +5,15 @@ admin.initializeApp({
   databaseURL: "https://untitledcafe-bfd05-default-rtdb.europe-west1.firebasedatabase.app"
 });
 
-const USER_PIN = "1234";
-const ADMIN_PIN = "9999";
+// ONE SINGLE SYSTEM PASSCODE
+const SYSTEM_PIN = "1234";
 
 exports.secureCommand = functions.https.onCall(async (data, context) => {
   try {
     const { pin, action, payload } = data;
 
-    let role = null;
-    if (pin === ADMIN_PIN) role = "ADMIN";
-    else if (pin === USER_PIN) role = "USER";
-
-    if (!role) {
+    // Coerce pin to string just in case JSON sent it as an integer over the network
+    if (String(pin) !== SYSTEM_PIN) {
       throw new Error("ACCESS DENIED: Invalid Passcode.");
     }
 
@@ -36,7 +33,6 @@ exports.secureCommand = functions.https.onCall(async (data, context) => {
         await db.ref("alarm_state").update({ periodic_active: payload.active, periodic_mins: payload.mins });
         break;
       case "sync_firmware":
-        if (role !== "ADMIN") throw new Error("Admins only.");
         await db.ref("system").update({ ota_url: payload.url });
         break;
       default:
@@ -47,7 +43,6 @@ exports.secureCommand = functions.https.onCall(async (data, context) => {
 
   } catch (error) {
     console.error("Backend Error:", error);
-    // Passing "unknown" forces Firebase to send the actual text message back to your browser
     throw new functions.https.HttpsError("unknown", error.message || "Database update failed");
   }
 });

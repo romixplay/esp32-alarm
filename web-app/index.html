@@ -22,8 +22,6 @@
         button.hold-btn:active:not(:disabled) { background: var(--accent); border-color: var(--accent); }
         button:disabled { opacity: 0.5; cursor: not-allowed; border-color: #999; color: #999; }
         .terminal { background-color: var(--terminal-bg); color: var(--terminal-text); padding: 1rem; font-size: 0.85rem; height: 100px; overflow-y: auto; border: 2px solid var(--text); display: flex; flex-direction: column; justify-content: flex-end; }
-        
-        /* Status Badge Colors */
         .status-connecting { background: #888; color: #fff; }
         .status-online { background: #00cc00; color: #000; }
         .status-offline { background: var(--accent); color: #fff; }
@@ -61,8 +59,8 @@
             </div>
         </div>
 
-        <div class="control-group" id="admin-panel" style="display: none; border-color: var(--accent);">
-            <label style="color: var(--accent);">ADMIN: SYNC FIRMWARE</label>
+        <div class="control-group" style="border-color: var(--accent);">
+            <label style="color: var(--accent);">ADMIN: FIRMWARE OVER-THE-AIR</label>
             <button class="danger" onclick="syncFromGit()">PULL LATEST GITHUB BUILD</button>
         </div>
 
@@ -70,13 +68,14 @@
             <label>LIVE SYSTEM LOG:</label>
             <div class="terminal" id="live-log">> Waiting for system connection...</div>
         </div>
+        
+        <button onclick="clearSession()" style="margin-top: 1rem; border-color: #888; color: #888;">LOG OUT / CLEAR CACHE</button>
     </div>
 
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
     <script>
-        // --- FIREBASE CONFIG ---
         const keyPart1 = "AIzaSyDabQ4ZNM"; 
         const keyPart2 = "Ufbloh9ePIudCoYfZeYf4ledA";
         
@@ -89,38 +88,25 @@
         let db;
         let cloudFunc;
         let isSystemOffline = true;
-
-        // Session variables
         let currentPin = localStorage.getItem('session_pin');
-        let currentRole = localStorage.getItem('session_role');
 
         function checkAccess() {
-            if (currentPin && currentRole) {
-                grantAccess(currentRole);
+            if (currentPin) {
+                document.getElementById('app').style.display = 'block';
+                initFirebase();
                 return;
             }
 
             const entry = prompt("ENTER SYSTEM PASSCODE:");
-            if (!entry) return showDenied();
-
-            // Store the raw PIN. We trust the Cloud Function to verify it.
-            // If they type a fake PIN, the UI will load, but all buttons will fail.
-            if (entry === "9999") {
-                saveSession(entry, "ADMIN");
-                grantAccess("ADMIN");
-            } else if (entry === "1234") {
-                saveSession(entry, "USER");
-                grantAccess("USER");
-            } else {
-                showDenied();
+            if (!entry) {
+                document.body.innerHTML = "<h2 style='text-align:center;'>ACCESS DENIED</h2>";
+                return;
             }
-        }
 
-        function saveSession(pin, role) {
-            localStorage.setItem('session_pin', pin);
-            localStorage.setItem('session_role', role);
-            currentPin = pin;
-            currentRole = role;
+            localStorage.setItem('session_pin', entry);
+            currentPin = entry;
+            document.getElementById('app').style.display = 'block';
+            initFirebase();
         }
 
         function clearSession() {
@@ -128,19 +114,9 @@
             location.reload();
         }
 
-        function showDenied() { document.body.innerHTML = "<h2 style='text-align:center;'>ACCESS DENIED</h2>"; }
-
-        function grantAccess(role) {
-            document.getElementById('app').style.display = 'block';
-            if (role === "ADMIN") document.getElementById('admin-panel').style.display = 'block';
-            initFirebase();
-        }
-
         function initFirebase() {
             firebase.initializeApp(firebaseConfig);
             db = firebase.database();
-            
-            // STRICT ROUTING: Force it to look at the exact server where CLI deployed it
             cloudFunc = firebase.app().functions('us-central1'); 
             
             setupHeartbeat();
@@ -149,13 +125,11 @@
             setupHoldButton();
         }
 
-        // --- BACKEND API CALLER ---
         async function sendSecureCommand(actionName, payloadData = {}) {
             if (isSystemOffline) { 
-                // Print to the terminal instead of freezing the screen with an alert
                 const logBox = document.getElementById('live-log');
                 logBox.innerHTML += `<br><span style="color: var(--accent);">[ERROR] System offline. Command ignored.</span>`;
-                logBox.scrollTop = logBox.scrollHeight; // Auto-scroll to bottom
+                logBox.scrollTop = logBox.scrollHeight;
                 return; 
             }
 
@@ -169,14 +143,15 @@
                 });
                 console.log(response.data.message);
             } catch (error) {
-                alert(`BACKEND ERROR: ${error.message}`);
+                const logBox = document.getElementById('live-log');
+                logBox.innerHTML += `<br><span style="color: var(--accent);">[AUTH ERROR] ${error.message}</span>`;
+                logBox.scrollTop = logBox.scrollHeight;
                 if (error.message.includes("ACCESS DENIED")) {
-                    clearSession(); 
+                    setTimeout(clearSession, 2000); 
                 }
             }
         }
 
-        // --- HEARTBEAT & LOGS (Same as before) ---
         function setUIStatus(statusStr) {
             const badge = document.getElementById('status-badge');
             badge.innerText = statusStr;
@@ -227,21 +202,9 @@
             });
         }
 
-        // --- SECURE UI CONTROLS ---
-        function updateVolume() { 
-            sendSecureCommand('update_volume', { volume: parseInt(document.getElementById('volume-slider').value) }); 
-        }
-        
-        function updatePeriodic() { 
-            sendSecureCommand('update_periodic', { 
-                active: document.getElementById('periodic-check').checked, 
-                mins: parseInt(document.getElementById('periodic-mins').value) 
-            }); 
-        }
-        
-        function triggerAlarm(seconds) { 
-            sendSecureCommand('trigger_alarm', { duration: seconds }); 
-        }
+        function updateVolume() { sendSecureCommand('update_volume', { volume: parseInt(document.getElementById('volume-slider').value) }); }
+        function updatePeriodic() { sendSecureCommand('update_periodic', { active: document.getElementById('periodic-check').checked, mins: parseInt(document.getElementById('periodic-mins').value) }); }
+        function triggerAlarm(seconds) { sendSecureCommand('trigger_alarm', { duration: seconds }); }
 
         function setupHoldButton() {
             const btn = document.getElementById('hold-btn');
@@ -257,8 +220,6 @@
             }
         }
 
-        // --- INIT ---
-        // We need to add the Cloud Functions script to the HTML head/body dynamically or statically
         const script = document.createElement('script');
         script.src = "https://www.gstatic.com/firebasejs/8.10.1/firebase-functions.js";
         script.onload = checkAccess;
