@@ -178,12 +178,24 @@
 
         function setupLiveLogs() {
             let logHistory = [];
+            let isFirstLoad = true; // Flag to catch the stale data on refresh
+            
             db.ref('system/latest_log').on('value', (snapshot) => {
                 if (snapshot.val()) {
-                    const time = new Date().toLocaleTimeString('en-US', { hour12: false });
-                    logHistory.push(`[${time}] > ${snapshot.val()}`);
+                    if (isFirstLoad) {
+                        // On refresh, just show the last known state without a fake clock time
+                        isFirstLoad = false;
+                        logHistory.push(`<span style="color:#888;">> Last known state: ${snapshot.val()}</span>`);
+                    } else {
+                        // On live updates, stamp it with the real browser time
+                        const time = new Date().toLocaleTimeString('en-US', { hour12: false });
+                        logHistory.push(`[${time}] > ${snapshot.val()}`);
+                    }
+                    
                     if (logHistory.length > 5) logHistory.shift(); 
-                    document.getElementById('live-log').innerHTML = logHistory.join('<br>');
+                    const logBox = document.getElementById('live-log');
+                    logBox.innerHTML = logHistory.join('<br>');
+                    logBox.scrollTop = logBox.scrollHeight; // Keep it scrolled to the bottom
                 }
             });
         }

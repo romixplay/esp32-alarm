@@ -5,22 +5,26 @@ admin.initializeApp({
   databaseURL: "https://untitledcafe-bfd05-default-rtdb.europe-west1.firebasedatabase.app"
 });
 
-const SYSTEM_PIN = "1234";
-
-exports.secureCommand = functions.https.onCall(async (data, context) => {
+exports.secureCommand = functions.https.onCall(async (request_or_data, context) => {
   try {
-    const { pin, action, payload } = data;
+    const actualData = request_or_data.data || request_or_data;
+    const { pin, action, payload } = actualData;
 
-    // Clean the input of any accidental spaces and force it to a string
+    // 1. Initialize DB
+    const db = admin.database();
+
+    // 2. FETCH THE DYNAMIC PASSCODE FROM FIREBASE
+    const passcodeSnapshot = await db.ref("system/passcode").once("value");
+    const SYSTEM_PIN = String(passcodeSnapshot.val()).trim();
+
+    // 3. Verify the user's input against the database secret
     const receivedPin = String(pin).trim();
-
+    
     if (receivedPin !== SYSTEM_PIN) {
-      // THIS IS THE MAGIC LINE: It will now tell you EXACTLY what it received
       throw new Error(`ACCESS DENIED. Server received: '${receivedPin}'`);
     }
-
-    const db = admin.database();
     
+    // 4. Execute commands if authorized
     switch (action) {
       case "trigger_alarm":
         await db.ref("alarm_state").update({ trigger: true, duration: payload.duration, hold_trigger: false });

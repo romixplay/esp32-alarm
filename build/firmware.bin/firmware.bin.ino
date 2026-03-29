@@ -49,7 +49,9 @@ unsigned long lastPeriodicBeep = 0;
 void logToCloud(String message) {
   Serial.println(message);
   if (Firebase.ready() && signupOK) {
-    Firebase.RTDB.setString(&fbdo, "/system/latest_log", message);
+    // Inject the ESP32 uptime in seconds so the string is ALWAYS unique
+    String uniqueLog = "[T+" + String(millis() / 1000) + "s] " + message;
+    Firebase.RTDB.setString(&fbdo, "/system/latest_log", uniqueLog);
   }
 }
 
