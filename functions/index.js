@@ -27,7 +27,7 @@ exports.secureCommand = functions.https.onCall(async (request_or_data, context) 
     // 4. Execute commands if authorized
     switch (action) {
       case "trigger_alarm":
-        await db.ref("alarm_state").update({ trigger: true, duration: payload.duration, hold_trigger: false });
+        await db.ref("alarm_state").update({ trigger_time: Date.now(), duration: payload.duration, hold_trigger: false });
         break;
       case "hold_alarm":
         await db.ref("alarm_state").update({ hold_trigger: payload.active });

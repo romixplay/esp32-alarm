@@ -31,6 +31,7 @@ FirebaseConfig config;
 bool signupOK = false;
 
 // --- SYSTEM STATE VARIABLES ---
+unsigned long lastProcessedTrigger = 0;
 unsigned long lastHeartbeat = 0;
 const long heartbeatInterval = 10000;
 
@@ -45,6 +46,16 @@ bool periodicActive = false;
 int periodicMins = 5;
 unsigned long lastPeriodicBeep = 0;
 
+// --- OPTIMIZED AUDIO BUFFER ---
+const int AUDIO_BUFFER_SIZE = 1000;
+int16_t precalculatedAudio[AUDIO_BUFFER_SIZE];
+
+void updateAudioBuffer() {
+  for(int i = 0; i < AUDIO_BUFFER_SIZE; i++) {
+    int rawWave = (i % 20 < 10) ? 15000 : -15000; 
+    precalculatedAudio[i] = (int16_t)(rawWave * currentVolume);
+  }
+}
 
 // --- CLOUD LOGGING ---
 void logToCloud(String message) {
@@ -57,11 +68,9 @@ void logToCloud(String message) {
 }
 
 // =========================================================================
-// FREERTOS AUDIO TASK (Optimized for Single-Core ESP32-C6)
+// FREERTOS AUDIO TASK (Zero-Math Optimization)
 // =========================================================================
 void audioTask(void * pvParameters) {
-  const int BATCH_SIZE = 512; 
-  int16_t sample[BATCH_SIZE];
   size_t bytes_written;
   bool wasPlaying = false; 
   
@@ -72,16 +81,11 @@ void audioTask(void * pvParameters) {
         wasPlaying = true;
       }
       
-      // Fast Integer math (No floats!)
-      for(int i = 0; i < BATCH_SIZE; i++) {
-        int rawWave = (i % 20 < 10) ? 15000 : -15000; 
-        sample[i] = (int16_t)(rawWave * currentVolume);
-      }
-      i2s_write(I2S_NUM_0, &sample, sizeof(sample), &bytes_written, portMAX_DELAY);
+      // Blast the pre-computed memory directly to the hardware. No math required!
+      i2s_write(I2S_NUM_0, precalculatedAudio, sizeof(precalculatedAudio), &bytes_written, portMAX_DELAY);
       
-      // THE MAGIC FIX: Force the FreeRTOS scheduler to pause audio for 1ms
-      // to let the Wi-Fi stack reply to the router!
-      vTaskDelay(1 / portTICK_PERIOD_MS);
+      // Let the Wi-Fi radio breathe
+      vTaskDelay(2 / portTICK_PERIOD_MS); 
       
     } else {
       if (wasPlaying) {
@@ -95,60 +99,63 @@ void audioTask(void * pvParameters) {
 }
 // =========================================================================
 
-unsigned long lastFirebasePoll = 0;
+unsigned long lastAlarmPoll = 0;
+unsigned long lastAdminPoll = 0;
 
 void setup() {
   Serial.begin(115200);
   
+  // 1. Initialize the static sound wave immediately
+  updateAudioBuffer(); 
+
   pinMode(PIN_AMP_SD, OUTPUT);
   digitalWrite(PIN_AMP_SD, LOW); 
 
+  // 2. Clean, standard Wi-Fi initialization
   WiFi.mode(WIFI_STA);
-  esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
+  WiFi.setSleep(false); // Prevent the antenna from micro-sleeping
 
   // --- START MULTI-WIFI SETUP ---
   wifiMulti.addAP("Sadan", "shamanshaman");
   wifiMulti.addAP("Ra", "88888888");
   wifiMulti.addAP("Dekel26", "100200300");
-  wifiMulti.addAP("Untitled Cafe - 5Ghz", "onemorecup"); // (Note: ESP32-C6 physically cannot see 5GHz, but it's fine to leave it)
+  wifiMulti.addAP("Untitled Cafe - 5Ghz", "onemorecup"); 
 
   Serial.print("Connecting to Wi-Fi");
-  
   while (wifiMulti.run() != WL_CONNECTED) {
     Serial.print(".");
     delay(300);
   }
   
-  Serial.println("");
-  Serial.println("Wi-Fi Connected!");
-  WiFi.setSleep(false);
-  Serial.printf("Free RAM before Firebase: %d bytes\n", ESP.getFreeHeap());
-
+  Serial.println("\nWi-Fi Connected!");
+  Serial.printf("Free RAM: %d bytes\n", ESP.getFreeHeap());
   Serial.print("Network: ");
   Serial.println(WiFi.SSID()); 
   Serial.print("IP Address: ");
   Serial.println(WiFi.localIP());
-  delay(3000);
 
   ArduinoOTA.setHostname("cafe-alarm-esp32c6");
   ArduinoOTA.begin();
 
   // =================================================================
-  // FIREBASE CONFIGURATION
+  // FIREBASE CONFIGURATION (Clean & Default)
   // =================================================================
   config.database_url = DATABASE_URL;
   config.signer.tokens.legacy_token = DATABASE_SECRET; 
   config.timeout.socketConnection = 10 * 1000;
 
-  // THE FRAGMENTATION FIX: Double the SSL RX buffer to handle massive router packets
-  // Syntax: setBSSLBufferSize(rx_size, tx_size)
-  fbdo.setBSSLBufferSize(4096, 1024);
-
   Firebase.begin(&config, &auth);
   Firebase.reconnectWiFi(true);
+
+  // THE FIX: Give Firebase 2 full seconds to warm up the SSL socket in the background
+  Serial.println("Warming up secure cloud connection...");
+  delay(2000);
+  
   signupOK = true; 
 
-  // Setup I2S for MAX98357A
+  // =================================================================
+  // HARDWARE CONFIGURATION
+  // =================================================================
   i2s_config_t i2s_config = {
     .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX),
     .sample_rate = 44100,
@@ -157,7 +164,7 @@ void setup() {
     .communication_format = I2S_COMM_FORMAT_STAND_I2S,
     .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
     .dma_buf_count = 8,
-    .dma_buf_len = 1024, // <--- INCREASE THIS TO 1024
+    .dma_buf_len = 1024, 
     .use_apll = false,
     .tx_desc_auto_clear = true
   };
@@ -171,10 +178,11 @@ void setup() {
   i2s_set_pin(I2S_NUM_0, &pin_config);
   i2s_zero_dma_buffer(I2S_NUM_0);
 
-  // Start the isolated Audio Task
+  // Start the isolated, math-free Audio Task
   xTaskCreate(audioTask, "AudioTask", 4096, NULL, 1, NULL);
 
-  logToCloud("System Booted v2.0 (Non-Blocking). IP: " + WiFi.localIP().toString());
+  // First cloud ping!
+  logToCloud("System Booted v2.1 (Optimized Memory). IP: " + WiFi.localIP().toString());
 }
 
 void loop() {
@@ -183,37 +191,67 @@ void loop() {
   if (Firebase.ready() && signupOK) {
     
     // ==========================================
-    // 1. FAST HARDWARE LOGIC (Runs every 50ms)
+    // 1. FAST HARDWARE LOGIC (Runs continuously)
     // ==========================================
-    
-    // Evaluate if the alarm should be making noise right now
     if (holdTriggerActive || (millis() < timedPlayEndTime)) {
       isPlaying = true;
     } else {
       isPlaying = false;
     }
 
-    // Periodic Beep Logic
     if (periodicActive && (millis() - lastPeriodicBeep > (periodicMins * 60000))) {
       lastPeriodicBeep = millis();
       timedPlayEndTime = millis() + 1000; 
       logToCloud("Periodic beep triggered.");
     }
 
-
     // ==========================================
-    // 2. SLOW NETWORK LOGIC (Runs every 3 seconds)
+    // 2. URGENT ALARM POLLING (Every 1 Second)
     // ==========================================
-    if (millis() - lastFirebasePoll > 3000) {
-      lastFirebasePoll = millis();
+    if (millis() - lastAlarmPoll > 1000) {
+      lastAlarmPoll = millis();
 
-      // A. HEARTBEAT
-      if (millis() - lastHeartbeat > heartbeatInterval) {
-        lastHeartbeat = millis();
-        Firebase.RTDB.setTimestamp(&fbdo, "/system/last_ping");
+      if (Firebase.RTDB.getJSON(&fbdo, "/alarm_state")) {
+        StaticJsonDocument<512> doc;
+        deserializeJson(doc, fbdo.to<String>());
+
+        if (doc.containsKey("volume")) {
+          int v = doc["volume"];
+          float newVol = constrain(v, 0, 100) / 100.0;
+          if (newVol != currentVolume) {
+            currentVolume = newVol;
+            updateAudioBuffer(); 
+          }
+        }
+        if (doc.containsKey("periodic_active")) periodicActive = doc["periodic_active"];
+        if (doc.containsKey("periodic_mins")) periodicMins = doc["periodic_mins"];
+        if (doc.containsKey("hold_trigger")) holdTriggerActive = doc["hold_trigger"];
+
+        if (doc.containsKey("trigger_time")) {
+          unsigned long currentTrigger = doc["trigger_time"].as<unsigned long>();
+          
+          // Only play if this is a brand new button press we haven't seen before
+          if (currentTrigger > lastProcessedTrigger) {
+            lastProcessedTrigger = currentTrigger; // Remember this press
+            
+            int duration = doc["duration"] ? doc["duration"].as<int>() : 3;
+            logToCloud("Timed alarm triggered for " + String(duration) + "s.");
+            timedPlayEndTime = millis() + (duration * 1000);
+          }
+        }
       }
+    }
 
-      // B. HTTP OTA CHECK
+    // ==========================================
+    // 3. SLOW ADMIN POLLING (Every 10 Seconds)
+    // ==========================================
+    if (millis() - lastAdminPoll > 10000) {
+      lastAdminPoll = millis();
+
+      // Send Heartbeat Ping
+      Firebase.RTDB.setTimestamp(&fbdo, "/system/last_ping");
+
+      // Check for GitHub OTA Updates
       if (Firebase.RTDB.getString(&fbdo, "/system/ota_url")) {
         String ota_url = fbdo.to<String>();
         if (ota_url.length() > 10) {
@@ -238,30 +276,9 @@ void loop() {
           ESP.restart(); 
         }
       }
-
-      // C. FETCH STATE
-      if (Firebase.RTDB.getJSON(&fbdo, "/alarm_state")) {
-        StaticJsonDocument<512> doc;
-        deserializeJson(doc, fbdo.to<String>());
-
-        if (doc.containsKey("volume")) {
-          int v = doc["volume"];
-          currentVolume = constrain(v, 0, 100) / 100.0;
-        }
-        if (doc.containsKey("periodic_active")) periodicActive = doc["periodic_active"];
-        if (doc.containsKey("periodic_mins")) periodicMins = doc["periodic_mins"];
-        if (doc.containsKey("hold_trigger")) holdTriggerActive = doc["hold_trigger"];
-
-        if (doc.containsKey("trigger") && doc["trigger"] == true) {
-          int duration = doc["duration"] ? doc["duration"].as<int>() : 3;
-          timedPlayEndTime = millis() + (duration * 1000);
-          logToCloud("Timed alarm triggered for " + String(duration) + "s.");
-          Firebase.RTDB.setBool(&fbdo, "/alarm_state/trigger", false); 
-        }
-      }
     }
 
-    // Give FreeRTOS breathing room, but keep UI physically responsive
+    // Give FreeRTOS breathing room
     delay(50); 
   }
 }
