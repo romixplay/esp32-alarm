@@ -137,7 +137,7 @@
             <button class="btn-outline" style="width: 100%;" onclick="updateFirmware()">PULL LATEST GITHUB BUILD (OTA)</button>
             
             <div class="version-text">
-                FIRMWARE VERSION: <span id="fw-version">Mar 30, 2026 - 22:11:40</span>
+                FIRMWARE VERSION: <span id="fw-version">Mar 30, 2026 - 22:19:31</span>
             </div>
         </details>
 
@@ -155,7 +155,7 @@
             };
             firebase.initializeApp(firebaseConfig);
             db = firebase.database();
-            functions = firebase.functions('europe-west1'); 
+            functions = firebase.app().functions('europe-west1');
         } catch (e) {
             alert("SYSTEM FATAL ERROR: Firebase failed to load. " + e.message);
         }

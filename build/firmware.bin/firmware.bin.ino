@@ -136,8 +136,21 @@ void audioTask(void * pvParameters) {
 void logToCloud(String message) {
   Serial.println(message);
   if (Firebase.ready() && signupOK) {
-    // Inject the ESP32 uptime in seconds so the string is ALWAYS unique
-    String uniqueLog = "[T+" + String(millis() / 1000) + "s] " + message;
+    struct tm timeinfo;
+    String timeString;
+    
+    // Check if the ESP32 knows the real time
+    if (getLocalTime(&timeinfo, 10)) {
+      char timeFmt[20];
+      // Format: Mar 30 22:15:00
+      strftime(timeFmt, sizeof(timeFmt), "%b %d %H:%M:%S", &timeinfo);
+      timeString = String(timeFmt);
+    } else {
+      // Fallback if time sync failed
+      timeString = "T+" + String(millis() / 1000) + "s";
+    }
+    
+    String uniqueLog = "[" + timeString + "] " + message;
     Firebase.RTDB.setString(&fbdo, "/system/latest_log", uniqueLog);
   }
 }
@@ -179,8 +192,9 @@ Serial.println("\nWi-Fi Connected!");
   // THE SSL FIX: FORCE TIME SYNCHRONIZATION
   // =================================================================
   Serial.print("Syncing internal clock for SSL...");
-  configTime(0, 0, "pool.ntp.org", "time.nist.gov");
-  
+  // Syncing internal clock (Israel Time: 7200 sec offset, 3600 sec DST)
+  configTime(7200, 3600, "pool.ntp.org", "time.nist.gov");
+
   // Wait until the ESP32 realizes it is not 1970 anymore
   while (time(nullptr) < 100000) {
     Serial.print(".");
