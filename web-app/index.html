@@ -29,213 +29,108 @@
 </head>
 <body>
 
-    <div class="container" id="app" style="display: none;">
-        <h1>
-            UNTITLED~SAFE
-            <span id="status-badge" class="status-connecting" style="padding: 2px 8px; font-size: 0.9rem; border: 2px solid var(--text);">CONNECTING</span>
-        </h1>
-        
-        <div class="control-group">
-            <div class="flex-row">
-                <label>VOLUME:</label>
-                <span id="vol-display">50%</span>
-            </div>
-            <input type="range" id="volume-slider" min="0" max="100" value="50" onchange="updateVolume()">
-        </div>
-
-        <div class="control-group">
-            <label>MANUAL ALARM TRIGGER</label>
-            <button class="danger" onclick="triggerAlarm(3)">SOUND ALARM (3s)</button>
-            <button class="danger hold-btn" id="hold-btn">HOLD TO PLAY</button>
-        </div>
-
-        <div class="control-group">
-            <div class="flex-row">
-                <label><input type="checkbox" id="periodic-check" onchange="updatePeriodic()"> PERIODIC BEEP</label>
-            </div>
-            <div class="flex-row">
-                <span>Interval (Minutes):</span>
-                <input type="number" id="periodic-mins" min="1" max="60" value="5" onchange="updatePeriodic()">
-            </div>
-        </div>
-
-        <div class="control-group" style="border-color: var(--accent);">
-            <label style="color: var(--accent);">ADMIN: FIRMWARE OVER-THE-AIR</label>
-            <button class="danger" onclick="syncFromGit()">PULL LATEST GITHUB BUILD</button>
-        </div>
-
-        <div class="control-group">
-            <label>LIVE SYSTEM LOG:</label>
-            <div class="terminal" id="live-log">> Waiting for system connection...</div>
-        </div>
-        
-        <button onclick="clearSession()" style="margin-top: 1rem; border-color: #888; color: #888;">LOG OUT / CLEAR CACHE</button>
+    <div class="container">
+    <div class="header">
+        <h2>UNTITLED~SAFE</h2>
+        <span class="status" id="status-badge">OFFLINE</span>
     </div>
 
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-
-    <script>
-        const keyPart1 = "AIzaSyDabQ4ZNM"; 
-        const keyPart2 = "Ufbloh9ePIudCoYfZeYf4ledA";
+    <div class="card">
+        <label>MAIN VOLUME: <span id="vol-val">50%</span></label>
+        <input type="range" id="volume" min="0" max="100" value="50" onchange="saveSettings()">
         
-        const firebaseConfig = {
-            apiKey: keyPart1 + keyPart2,
-            databaseURL: "https://untitledcafe-bfd05-default-rtdb.europe-west1.firebasedatabase.app",
-            projectId: "untitledcafe-bfd05"
-        };
-
-        let db;
-        let cloudFunc;
-        let isSystemOffline = true;
-        let currentPin = localStorage.getItem('session_pin');
-
-        function checkAccess() {
-            if (currentPin) {
-                document.getElementById('app').style.display = 'block';
-                initFirebase();
-                return;
-            }
-
-            const entry = prompt("ENTER SYSTEM PASSCODE:");
-            if (!entry) {
-                document.body.innerHTML = "<h2 style='text-align:center;'>ACCESS DENIED</h2>";
-                return;
-            }
-
-            localStorage.setItem('session_pin', entry);
-            currentPin = entry;
-            document.getElementById('app').style.display = 'block';
-            initFirebase();
-        }
-
-        function clearSession() {
-            localStorage.clear();
-            location.reload();
-        }
-
-        function initFirebase() {
-            firebase.initializeApp(firebaseConfig);
-            db = firebase.database();
-            cloudFunc = firebase.app().functions('us-central1'); 
+        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed var(--text);">
+            <label>SIREN MIN FREQUENCY: <span id="smin-val">800Hz</span></label>
+            <input type="range" id="siren-min" min="300" max="2500" step="50" value="800" onchange="saveSettings()">
             
-            setupHeartbeat();
-            setupLiveLogs();
-            setupStateSync();
-            setupHoldButton();
-        }
-
-        async function sendSecureCommand(actionName, payloadData = {}) {
-            if (isSystemOffline) { 
-                const logBox = document.getElementById('live-log');
-                logBox.innerHTML += `<br><span style="color: var(--accent);">[ERROR] System offline. Command ignored.</span>`;
-                logBox.scrollTop = logBox.scrollHeight;
-                return; 
-            }
-
-            const secureCommand = cloudFunc.httpsCallable('secureCommand');
+            <label style="margin-top: 10px;">SIREN MAX FREQUENCY: <span id="smax-val">1600Hz</span></label>
+            <input type="range" id="siren-max" min="300" max="2500" step="50" value="1600" onchange="saveSettings()">
             
-            try {
-                const response = await secureCommand({
-                    pin: currentPin,
-                    action: actionName,
-                    payload: payloadData
-                });
-                console.log(response.data.message);
-            } catch (error) {
-                const logBox = document.getElementById('live-log');
-                logBox.innerHTML += `<br><span style="color: var(--accent);">[AUTH ERROR] ${error.message}</span>`;
-                logBox.scrollTop = logBox.scrollHeight;
-                if (error.message.includes("ACCESS DENIED")) {
-                    setTimeout(clearSession, 2000); 
-                }
-            }
-        }
+            <label style="margin-top: 10px;">SIREN SWEEP SPEED: <span id="sspeed-val">10</span></label>
+            <input type="range" id="siren-speed" min="1" max="50" value="10" onchange="saveSettings()">
+        </div>
+    </div>
 
-        function setUIStatus(statusStr) {
-            const badge = document.getElementById('status-badge');
-            badge.innerText = statusStr;
-            badge.className = ''; 
-            if (statusStr === "CONNECTING...") { badge.classList.add('status-connecting'); isSystemOffline = true; } 
-            else if (statusStr === "ONLINE") { badge.classList.add('status-online'); isSystemOffline = false; } 
-            else { badge.classList.add('status-offline'); isSystemOffline = true; }
-        }
+    <div class="card">
+        <label>MANUAL ALARM TRIGGER</label>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+            <button class="btn-outline" onclick="triggerAlarm(3)">SOUND (3s)</button>
+            <button class="btn-outline" onclick="triggerAlarm(5)">SOUND (5s)</button>
+            <button class="btn-outline" onclick="triggerAlarm(10)">SOUND (10s)</button>
+            <button class="btn-outline" onclick="triggerAlarm(30)">SOUND (30s)</button>
+        </div>
+        <button class="btn-solid" id="btn-hold" onmousedown="holdAlarm(true)" onmouseup="holdAlarm(false)" onmouseleave="holdAlarm(false)" ontouchstart="holdAlarm(true)" ontouchend="holdAlarm(false)">HOLD TO PLAY</button>
+    </div>
 
-        function setupHeartbeat() {
-            setUIStatus("CONNECTING...");
-            db.ref('system/last_ping').on('value', (snapshot) => {
-                if (snapshot.exists()) { 
-                    if (Date.now() - snapshot.val() < 15000) setUIStatus("ONLINE");
-                    else setUIStatus("OFFLINE");
-                }
-            });
-            setInterval(() => {
-                db.ref('system/last_ping').once('value').then((snapshot) => {
-                    if (snapshot.exists() && (Date.now() - snapshot.val() > 15000)) setUIStatus("OFFLINE");
-                });
-            }, 5000);
-        }
-
-        function setupLiveLogs() {
-            let logHistory = [];
-            let isFirstLoad = true; // Flag to catch the stale data on refresh
+    <div class="card">
+        <label style="display: flex; align-items: center; gap: 10px;">
+            <input type="checkbox" id="periodic-toggle" onchange="saveSettings()"> 
+            <span id="periodic-title">PERIODIC BEEP EVERY 30 SEC</span>
+        </label>
+        
+        <div style="margin-top: 15px; padding-left: 10px; border-left: 2px solid var(--text);">
+            <label>Interval (Seconds):</label>
+            <input type="number" id="periodic-sec" value="30" style="width: 100px; padding: 5px;" onchange="updatePeriodicTitle(); saveSettings()">
             
-            db.ref('system/latest_log').on('value', (snapshot) => {
-                if (snapshot.val()) {
-                    if (isFirstLoad) {
-                        // On refresh, just show the last known state without a fake clock time
-                        isFirstLoad = false;
-                        logHistory.push(`<span style="color:#888;">> Last known state: ${snapshot.val()}</span>`);
-                    } else {
-                        // On live updates, stamp it with the real browser time
-                        const time = new Date().toLocaleTimeString('en-US', { hour12: false });
-                        logHistory.push(`[${time}] > ${snapshot.val()}`);
-                    }
-                    
-                    if (logHistory.length > 50) logHistory.shift(); 
-                    const logBox = document.getElementById('live-log');
-                    logBox.innerHTML = logHistory.join('<br>');
-                    logBox.scrollTop = logBox.scrollHeight; // Keep it scrolled to the bottom
-                }
-            });
-        }
+            <label style="margin-top: 10px;">Beep Length (Seconds):</label>
+            <input type="number" id="periodic-len" value="0.1" step="0.1" style="width: 100px; padding: 5px;" onchange="saveSettings()">
 
-        function setupStateSync() {
-            db.ref('alarm_state').on('value', (snapshot) => {
-                const data = snapshot.val();
-                if (data) {
-                    if (data.volume !== undefined) {
-                        document.getElementById('volume-slider').value = data.volume;
-                        document.getElementById('vol-display').innerText = data.volume + "%";
-                    }
-                    if (data.periodic_active !== undefined) { document.getElementById('periodic-check').checked = data.periodic_active; }
-                    if (data.periodic_mins !== undefined) { document.getElementById('periodic-mins').value = data.periodic_mins; }
-                }
-            });
-        }
+            <label style="margin-top: 10px;">BEEP FREQUENCY: <span id="pfreq-val">1000Hz</span></label>
+            <input type="range" id="periodic-freq" min="300" max="2500" step="50" value="1000" onchange="saveSettings()">
 
-        function updateVolume() { sendSecureCommand('update_volume', { volume: parseInt(document.getElementById('volume-slider').value) }); }
-        function updatePeriodic() { sendSecureCommand('update_periodic', { active: document.getElementById('periodic-check').checked, mins: parseInt(document.getElementById('periodic-mins').value) }); }
-        function triggerAlarm(seconds) { sendSecureCommand('trigger_alarm', { duration: seconds }); }
+            <label style="margin-top: 10px;">BEEP VOLUME: <span id="pvol-val">50%</span></label>
+            <input type="range" id="periodic-vol" min="0" max="100" value="50" onchange="saveSettings()">
+        </div>
+    </div>
 
-        function setupHoldButton() {
-            const btn = document.getElementById('hold-btn');
-            const pressAction = (e) => { if(e) e.preventDefault(); sendSecureCommand('hold_alarm', { active: true }); };
-            const releaseAction = (e) => { if(e) e.preventDefault(); sendSecureCommand('hold_alarm', { active: false }); };
-            btn.addEventListener('mousedown', pressAction); btn.addEventListener('mouseup', releaseAction); btn.addEventListener('mouseleave', releaseAction);
-            btn.addEventListener('touchstart', pressAction); btn.addEventListener('touchend', releaseAction);
-        }
+    </div>
 
-        function syncFromGit() {
-            if (confirm("WARNING: Proceed with GitHub OTA flash?")) {
-                sendSecureCommand('sync_firmware', { url: 'https://raw.githubusercontent.com/romixplay/esp32-alarm/main/firmware/firmware.bin' });
-            }
-        }
+<script>
+    // Link sliders to their text labels for visual feedback
+    const ids = ['volume', 'siren-min', 'siren-max', 'siren-speed', 'periodic-freq', 'periodic-vol'];
+    ids.forEach(id => {
+        document.getElementById(id).addEventListener('input', function() {
+            let val = this.value;
+            if(id.includes('vol')) val += '%';
+            else if(id.includes('freq') || id.includes('min') || id.includes('max')) val += 'Hz';
+            document.getElementById(id.replace('volume', 'vol').split('-')[0].substring(0,5) + id.replace('volume', 'vol').split('-').pop() + '-val').innerText = val; // Quick hack to map IDs to labels
+            updateLabels();
+        });
+    });
 
-        const script = document.createElement('script');
-        script.src = "https://www.gstatic.com/firebasejs/8.10.1/firebase-functions.js";
-        script.onload = checkAccess;
-        document.head.appendChild(script);
-    </script>
+    function updateLabels() {
+        document.getElementById('vol-val').innerText = document.getElementById('volume').value + '%';
+        document.getElementById('smin-val').innerText = document.getElementById('siren-min').value + 'Hz';
+        document.getElementById('smax-val').innerText = document.getElementById('siren-max').value + 'Hz';
+        document.getElementById('sspeed-val').innerText = document.getElementById('siren-speed').value;
+        document.getElementById('pfreq-val').innerText = document.getElementById('periodic-freq').value + 'Hz';
+        document.getElementById('pvol-val').innerText = document.getElementById('periodic-vol').value + '%';
+    }
+
+    function updatePeriodicTitle() {
+        document.getElementById('periodic-title').innerText = `PERIODIC BEEP EVERY ${document.getElementById('periodic-sec').value} SEC`;
+    }
+
+    async function saveSettings() {
+        updatePeriodicTitle();
+        await sendCommand("update_settings", {
+            volume: parseInt(document.getElementById('volume').value),
+            siren_min: parseInt(document.getElementById('siren-min').value),
+            siren_max: parseInt(document.getElementById('siren-max').value),
+            siren_speed: parseInt(document.getElementById('siren-speed').value),
+            periodic_active: document.getElementById('periodic-toggle').checked,
+            periodic_sec: parseInt(document.getElementById('periodic-sec').value),
+            periodic_vol: parseInt(document.getElementById('periodic-vol').value),
+            periodic_freq: parseInt(document.getElementById('periodic-freq').value),
+            periodic_len: parseFloat(document.getElementById('periodic-len').value)
+        });
+    }
+
+    // Update trigger functions to use new signatures
+    async function triggerAlarm(seconds) { await sendCommand("trigger_alarm", { duration: seconds }); }
+    async function holdAlarm(state) { await sendCommand("hold_alarm", { active: state }); }
+    
+    // ... Keep your existing sendCommand and setupLiveLogs functions ...
+</script>
 </body>
 </html>

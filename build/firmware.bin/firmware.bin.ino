@@ -31,33 +31,94 @@ FirebaseConfig config;
 bool signupOK = false;
 
 // --- SYSTEM STATE VARIABLES ---
-unsigned long lastProcessedTrigger = 0;
 unsigned long lastHeartbeat = 0;
-const long heartbeatInterval = 10000;
+unsigned long lastAlarmPoll = 0;
+unsigned long lastAdminPoll = 0;
+double lastProcessedTrigger = 0; 
 
-// Audio State (Volatile because they are shared between FreeRTOS tasks)
-volatile bool isPlaying = false;
-volatile float currentVolume = 0.5; // 0.0 to 1.0 multiplier
+// --- DYNAMIC AUDIO ENGINE CONFIG ---
+volatile int audioMode = 0; // 0 = Silence, 1 = Siren, 2 = Periodic Beep
 
-// Logic State
-unsigned long timedPlayEndTime = 0;
-bool holdTriggerActive = false;
+// Siren Settings
+volatile float mainVolume = 0.5;
+volatile int sirenMinFreq = 800;
+volatile int sirenMaxFreq = 1600;
+volatile int sirenSpeed = 10;
+
+// Periodic Settings
+volatile float periodicVolume = 0.5;
+volatile int periodicFreq = 1000;
+volatile int periodicSecs = 30;
+volatile float periodicLen = 0.1; // Seconds
 bool periodicActive = false;
-int periodicMins = 5;
-unsigned long lastPeriodicBeep = 0;
+unsigned long lastPeriodicTrigger = 0;
+unsigned long periodicEndTime = 0;
 
-// --- OPTIMIZED AUDIO BUFFER ---
-const int AUDIO_BUFFER_SIZE = 1000;
-int16_t precalculatedAudio[AUDIO_BUFFER_SIZE];
+// Timers
+unsigned long alarmEndTime = 0;
+bool holdTriggerActive = false;
 
-void updateAudioBuffer() {
-  for(int i = 0; i < AUDIO_BUFFER_SIZE; i++) {
-    int rawWave = (i % 20 < 10) ? 15000 : -15000; 
-    precalculatedAudio[i] = (int16_t)(rawWave * currentVolume);
+// =========================================================================
+// FREERTOS AUDIO TASK (Real-Time Phase Accumulator Synthesizer)
+// =========================================================================
+void audioTask(void * pvParameters) {
+  const int BATCH_SIZE = 512;
+  int16_t sample[BATCH_SIZE];
+  size_t bytes_written;
+  bool wasPlaying = false; 
+
+  // Synth Engine State
+  uint32_t phase = 0;
+  float currentFreq = 800;
+  int direction = 1;
+  
+  while(true) {
+    if (audioMode > 0) {
+      if (!wasPlaying) {
+        digitalWrite(PIN_AMP_SD, HIGH); 
+        wasPlaying = true;
+        currentFreq = (audioMode == 1) ? sirenMinFreq : periodicFreq;
+        phase = 0;
+      }
+      
+      // Determine Amplitude based on mode
+      int16_t amplitude = (int16_t)(15000 * ((audioMode == 1) ? mainVolume : periodicVolume));
+
+      // Calculate the audio buffer
+      for(int i = 0; i < BATCH_SIZE; i++) {
+        
+        // If it's a Siren, smoothly slide the frequency per sample batch
+        if (audioMode == 1 && i == 0) {
+          currentFreq += (sirenSpeed * direction);
+          if (currentFreq >= sirenMaxFreq) { currentFreq = sirenMaxFreq; direction = -1; }
+          if (currentFreq <= sirenMinFreq) { currentFreq = sirenMinFreq; direction = 1; }
+        }
+
+        // Fixed-point phase math (Incredibly fast, perfectly smooth)
+        uint32_t phaseStep = (uint32_t)((currentFreq * 65536.0) / 44100.0);
+        phase += phaseStep;
+        
+        // Square wave generation based on phase rollover
+        sample[i] = ((phase & 0x8000) > 0) ? amplitude : -amplitude;
+      }
+
+      i2s_write(I2S_NUM_0, &sample, sizeof(sample), &bytes_written, portMAX_DELAY);
+      vTaskDelay(1 / portTICK_PERIOD_MS); 
+      
+    } else {
+      if (wasPlaying) {
+        digitalWrite(PIN_AMP_SD, LOW); 
+        i2s_zero_dma_buffer(I2S_NUM_0); 
+        wasPlaying = false;
+      }
+      vTaskDelay(50 / portTICK_PERIOD_MS); 
+    }
   }
 }
 
-// --- CLOUD LOGGING ---
+// =========================================================================
+// CLOUD LOGGING UTILITY
+// =========================================================================
 void logToCloud(String message) {
   Serial.println(message);
   if (Firebase.ready() && signupOK) {
@@ -67,53 +128,16 @@ void logToCloud(String message) {
   }
 }
 
-// =========================================================================
-// FREERTOS AUDIO TASK (Zero-Math Optimization)
-// =========================================================================
-void audioTask(void * pvParameters) {
-  size_t bytes_written;
-  bool wasPlaying = false; 
-  
-  while(true) {
-    if (isPlaying) {
-      if (!wasPlaying) {
-        digitalWrite(PIN_AMP_SD, HIGH); 
-        wasPlaying = true;
-      }
-      
-      // Blast the pre-computed memory directly to the hardware. No math required!
-      i2s_write(I2S_NUM_0, precalculatedAudio, sizeof(precalculatedAudio), &bytes_written, portMAX_DELAY);
-      
-      // Let the Wi-Fi radio breathe
-      vTaskDelay(2 / portTICK_PERIOD_MS); 
-      
-    } else {
-      if (wasPlaying) {
-        digitalWrite(PIN_AMP_SD, LOW); 
-        i2s_zero_dma_buffer(I2S_NUM_0); 
-        wasPlaying = false;
-      }
-      vTaskDelay(100 / portTICK_PERIOD_MS); 
-    }
-  }
-}
-// =========================================================================
-
-unsigned long lastAlarmPoll = 0;
-unsigned long lastAdminPoll = 0;
-
 void setup() {
   Serial.begin(115200);
   
-  // 1. Initialize the static sound wave immediately
-  updateAudioBuffer(); 
-
   pinMode(PIN_AMP_SD, OUTPUT);
   digitalWrite(PIN_AMP_SD, LOW); 
 
   // 2. Clean, standard Wi-Fi initialization
   WiFi.mode(WIFI_STA);
   WiFi.setSleep(false); // Prevent the antenna from micro-sleeping
+  esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N); // Force Wi-Fi 4 to prevent SSL packet corruption on your router!
 
   // --- START MULTI-WIFI SETUP ---
   wifiMulti.addAP("Sadan", "shamanshaman");
@@ -149,7 +173,7 @@ void setup() {
 
   // THE FIX: Give Firebase 2 full seconds to warm up the SSL socket in the background
   Serial.println("Warming up secure cloud connection...");
-  delay(2000);
+  delay(3000);
   
   signupOK = true; 
 
@@ -190,95 +214,71 @@ void loop() {
 
   if (Firebase.ready() && signupOK) {
     
-    // ==========================================
-    // 1. FAST HARDWARE LOGIC (Runs continuously)
-    // ==========================================
-    if (holdTriggerActive || (millis() < timedPlayEndTime)) {
-      isPlaying = true;
-    } else {
-      isPlaying = false;
-    }
-
-    if (periodicActive && (millis() - lastPeriodicBeep > (periodicMins * 60000))) {
-      lastPeriodicBeep = millis();
-      timedPlayEndTime = millis() + 1000; 
+    // ---------------------------------------------------------
+    // 1. FAST HARDWARE LOGIC (Evaluates Audio Routing)
+    // ---------------------------------------------------------
+    if (holdTriggerActive || (millis() < alarmEndTime)) {
+      audioMode = 1; // Play Siren
+    } 
+    else if (periodicActive && (millis() - lastPeriodicTrigger > (periodicSecs * 1000))) {
+      lastPeriodicTrigger = millis();
+      periodicEndTime = millis() + (periodicLen * 1000);
       logToCloud("Periodic beep triggered.");
     }
 
-    // ==========================================
-    // 2. URGENT ALARM POLLING (Every 1 Second)
-    // ==========================================
+    // Route the periodic beep if the main alarm is quiet
+    if (audioMode != 1) {
+      if (millis() < periodicEndTime) audioMode = 2; // Play Beep
+      else audioMode = 0; // Silence
+    }
+
+    // ---------------------------------------------------------
+    // 2. ALARM POLLING (Every 1 Second)
+    // ---------------------------------------------------------
     if (millis() - lastAlarmPoll > 1000) {
       lastAlarmPoll = millis();
 
       if (Firebase.RTDB.getJSON(&fbdo, "/alarm_state")) {
-        StaticJsonDocument<512> doc;
+        StaticJsonDocument<1024> doc;
         deserializeJson(doc, fbdo.to<String>());
 
-        if (doc.containsKey("volume")) {
-          int v = doc["volume"];
-          float newVol = constrain(v, 0, 100) / 100.0;
-          if (newVol != currentVolume) {
-            currentVolume = newVol;
-            updateAudioBuffer(); 
-          }
-        }
+        // Sync all our new custom sliders
+        if (doc.containsKey("volume")) mainVolume = constrain(doc["volume"].as<int>(), 0, 100) / 100.0;
+        if (doc.containsKey("siren_min")) sirenMinFreq = doc["siren_min"];
+        if (doc.containsKey("siren_max")) sirenMaxFreq = doc["siren_max"];
+        if (doc.containsKey("siren_speed")) sirenSpeed = doc["siren_speed"];
+        
         if (doc.containsKey("periodic_active")) periodicActive = doc["periodic_active"];
-        if (doc.containsKey("periodic_mins")) periodicMins = doc["periodic_mins"];
+        if (doc.containsKey("periodic_sec")) periodicSecs = doc["periodic_sec"];
+        if (doc.containsKey("periodic_vol")) periodicVolume = constrain(doc["periodic_vol"].as<int>(), 0, 100) / 100.0;
+        if (doc.containsKey("periodic_freq")) periodicFreq = doc["periodic_freq"];
+        if (doc.containsKey("periodic_len")) periodicLen = doc["periodic_len"].as<float>();
+        
         if (doc.containsKey("hold_trigger")) holdTriggerActive = doc["hold_trigger"];
 
+        // Check for new trigger
         if (doc.containsKey("trigger_time")) {
-          unsigned long currentTrigger = doc["trigger_time"].as<unsigned long>();
-          
-          // Only play if this is a brand new button press we haven't seen before
+          double currentTrigger = doc["trigger_time"].as<double>();
           if (currentTrigger > lastProcessedTrigger) {
-            lastProcessedTrigger = currentTrigger; // Remember this press
-            
+            lastProcessedTrigger = currentTrigger; 
             int duration = doc["duration"] ? doc["duration"].as<int>() : 3;
             logToCloud("Timed alarm triggered for " + String(duration) + "s.");
-            timedPlayEndTime = millis() + (duration * 1000);
+            alarmEndTime = millis() + (duration * 1000);
           }
         }
       }
     }
 
-    // ==========================================
+    // ---------------------------------------------------------
     // 3. SLOW ADMIN POLLING (Every 10 Seconds)
-    // ==========================================
+    // ---------------------------------------------------------
     if (millis() - lastAdminPoll > 10000) {
       lastAdminPoll = millis();
-
-      // Send Heartbeat Ping
       Firebase.RTDB.setTimestamp(&fbdo, "/system/last_ping");
 
-      // Check for GitHub OTA Updates
-      if (Firebase.RTDB.getString(&fbdo, "/system/ota_url")) {
-        String ota_url = fbdo.to<String>();
-        if (ota_url.length() > 10) {
-          logToCloud("OTA Triggered! Freeing memory...");
-          Firebase.RTDB.setString(&fbdo, "/system/ota_url", "");
-          delay(3000); 
-          
-          isPlaying = false;
-          digitalWrite(PIN_AMP_SD, LOW);
-          i2s_driver_uninstall(I2S_NUM_0); 
-          delay(1000); 
-          
-          WiFiClientSecure client;
-          client.setInsecure();
-          client.setTimeout(15000); 
-          httpUpdate.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-          
-          t_httpUpdate_return ret = httpUpdate.update(client, ota_url);
-          
-          if(ret == HTTP_UPDATE_OK) { Serial.println("OTA SUCCESS!"); } 
-          else { Serial.println("OTA FAILED: " + httpUpdate.getLastErrorString()); }
-          ESP.restart(); 
-        }
-      }
+      // ... keep your existing OTA check code here ...
     }
 
-    // Give FreeRTOS breathing room
     delay(50); 
   }
 }

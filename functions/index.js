@@ -1,30 +1,21 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 
-admin.initializeApp({
-  databaseURL: "https://untitledcafe-bfd05-default-rtdb.europe-west1.firebasedatabase.app"
-});
+admin.initializeApp();
 
 exports.secureCommand = functions.https.onCall(async (request_or_data, context) => {
   try {
     const actualData = request_or_data.data || request_or_data;
     const { pin, action, payload } = actualData;
 
-    // 1. Initialize DB
     const db = admin.database();
-
-    // 2. FETCH THE DYNAMIC PASSCODE FROM FIREBASE
     const passcodeSnapshot = await db.ref("system/passcode").once("value");
     const SYSTEM_PIN = String(passcodeSnapshot.val()).trim();
 
-    // 3. Verify the user's input against the database secret
-    const receivedPin = String(pin).trim();
-    
-    if (receivedPin !== SYSTEM_PIN) {
-      throw new Error(`ACCESS DENIED. Server received: '${receivedPin}'`);
+    if (String(pin).trim() !== SYSTEM_PIN) {
+      throw new Error(`ACCESS DENIED.`);
     }
     
-    // 4. Execute commands if authorized
     switch (action) {
       case "trigger_alarm":
         await db.ref("alarm_state").update({ trigger_time: Date.now(), duration: payload.duration, hold_trigger: false });
@@ -32,11 +23,18 @@ exports.secureCommand = functions.https.onCall(async (request_or_data, context) 
       case "hold_alarm":
         await db.ref("alarm_state").update({ hold_trigger: payload.active });
         break;
-      case "update_volume":
-        await db.ref("alarm_state").update({ volume: payload.volume });
-        break;
-      case "update_periodic":
-        await db.ref("alarm_state").update({ periodic_active: payload.active, periodic_mins: payload.mins });
+      case "update_settings":
+        await db.ref("alarm_state").update({ 
+            volume: payload.volume,
+            siren_min: payload.siren_min,
+            siren_max: payload.siren_max,
+            siren_speed: payload.siren_speed,
+            periodic_active: payload.periodic_active,
+            periodic_sec: payload.periodic_sec,
+            periodic_vol: payload.periodic_vol,
+            periodic_freq: payload.periodic_freq,
+            periodic_len: payload.periodic_len
+        });
         break;
       case "sync_firmware":
         await db.ref("system").update({ ota_url: payload.url });
@@ -45,10 +43,8 @@ exports.secureCommand = functions.https.onCall(async (request_or_data, context) 
         throw new Error("Unknown command.");
     }
 
-    return { success: true, message: `Command '${action}' executed successfully.` };
-
+    return { success: true };
   } catch (error) {
-    console.error("Backend Error:", error);
-    throw new functions.https.HttpsError("unknown", error.message || "Database update failed");
+    throw new functions.https.HttpsError("unknown", error.message);
   }
 });
