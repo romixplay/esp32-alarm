@@ -271,7 +271,6 @@ void loop() {
       if (periodicActive && (millis() - lastPeriodicTrigger > (periodicSecs * 1000))) {
         lastPeriodicTrigger = millis();
         periodicEndTime = millis() + (periodicLen * 1000);
-        logToCloud("Periodic beep triggered.");
       }
       if (millis() < periodicEndTime) beepActive = true;
 
@@ -315,12 +314,19 @@ void loop() {
         if (doc.containsKey("periodic_len")) periodicLen = doc["periodic_len"].as<float>();
         if (doc.containsKey("hold_trigger")) holdTriggerActive = doc["hold_trigger"].as<bool>();
 
-        // Toggle Logging
+        // Toggle Logging with Detailed Settings
         if (doc.containsKey("periodic_active")) {
           bool newState = doc["periodic_active"].as<bool>();
           if (newState != periodicActive) {
             periodicActive = newState;
-            logToCloud(periodicActive ? "Periodic Beep: ENABLED" : "Periodic Beep: DISABLED");
+            if (periodicActive) {
+              String msg = "Periodic Beep ON: " + String(periodicSecs) + "s interval, " + 
+                           String(periodicLen) + "s len, " + String(periodicFreq) + "Hz, " + 
+                           String((int)(periodicVolume * 100)) + "% vol";
+              logToCloud(msg);
+            } else {
+              logToCloud("Periodic Beep: DISABLED");
+            }
           }
         }
 
@@ -357,11 +363,45 @@ void loop() {
     // ---------------------------------------------------------
     if (millis() - lastAdminPoll > 10000) {
       lastAdminPoll = millis();
+      
+      // 1. Send Heartbeat Ping
       Firebase.RTDB.setTimestamp(&fbdo, "/system/last_ping");
+      
+      // 2. Send Uptime Tracker
+      Firebase.RTDB.setInt(&fbdo, "/system/uptime", millis() / 1000); 
 
-      // ... keep your existing OTA check code here ...
+      // 3. Check for GitHub OTA Updates
+      if (Firebase.RTDB.getString(&fbdo, "/system/ota_url")) {
+        String ota_url = fbdo.to<String>();
+        if (ota_url.length() > 10) {
+          logToCloud("OTA Triggered! Freeing memory...");
+          Firebase.RTDB.setString(&fbdo, "/system/ota_url", ""); // Clear the trigger
+          delay(3000); 
+          
+          // Brutally kill the audio engine to free up RAM for the download
+          audioMode = 0;
+          digitalWrite(PIN_AMP_SD, LOW);
+          i2s_driver_uninstall(I2S_NUM_0); 
+          delay(1000); 
+          
+          // Start the Secure Download
+          WiFiClientSecure client;
+          client.setInsecure(); // Skip certificate validation for the raw GitHub link
+          client.setTimeout(15000); 
+          httpUpdate.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+          
+          t_httpUpdate_return ret = httpUpdate.update(client, ota_url);
+          
+          if(ret == HTTP_UPDATE_OK) { Serial.println("OTA SUCCESS!"); } 
+          else { Serial.println("OTA FAILED: " + httpUpdate.getLastErrorString()); }
+          
+          // Always restart after an update attempt
+          ESP.restart(); 
+        }
+      }
     }
 
+    // Give FreeRTOS breathing room to handle the Wi-Fi background tasks
     delay(50); 
   }
 }

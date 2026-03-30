@@ -137,7 +137,10 @@
             <button class="btn-outline" style="width: 100%; margin-bottom: 10px;" onclick="updateFirmware()">PULL LATEST GITHUB BUILD (OTA)</button>
             <button class="btn-outline" style="width: 100%; border-color: #000; color: #000;" onclick="logout()">LOG OUT / CLEAR CACHE</button>
             
-            <div class="version-text"><span id="fw-version">FW: 260330233653</span></div>
+            <div class="version-text">
+                SYSTEM UPTIME: <span id="sys-uptime">0h 0m</span><br><br>
+                <span id="fw-version">FW: 260331005739</span>
+            </div>
         </div>
     </div>
 
@@ -222,7 +225,11 @@
         document.querySelectorAll('input[type="range"]').forEach(el => { el.addEventListener('input', updateLabels); });
 
         function updatePeriodicTitle() {
-            document.getElementById('periodic-title').innerText = `PERIODIC BEEP EVERY ${document.getElementById('periodic-sec').value} SEC`;
+            const sec = document.getElementById('periodic-sec').value;
+            const len = document.getElementById('periodic-len').value;
+            const freq = document.getElementById('periodic-freq').value;
+            const vol = document.getElementById('periodic-vol').value;
+            document.getElementById('periodic-title').innerText = `PERIODIC BEEP EVERY ${sec}s | ${len}s | ${freq}Hz | ${vol}%`;
         }
 
         async function sendCommand(action, payload = {}) {
@@ -280,6 +287,16 @@
                         statusBadge.className = "status-badge bg-green";
                         statusBadge.innerText = "ONLINE";
                     }
+                }
+            });
+
+            // Listen for Uptime Updates
+            db.ref('system/uptime').on('value', (snapshot) => {
+                const upSecs = snapshot.val();
+                if (upSecs) {
+                    const hours = Math.floor(upSecs / 3600);
+                    const minutes = Math.floor((upSecs % 3600) / 60);
+                    document.getElementById('sys-uptime').innerText = `${hours}h ${minutes}m`;
                 }
             });
         }
