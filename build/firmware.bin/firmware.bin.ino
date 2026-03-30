@@ -168,12 +168,26 @@ void setup() {
     delay(300);
   }
   
-  Serial.println("\nWi-Fi Connected!");
+Serial.println("\nWi-Fi Connected!");
   Serial.printf("Free RAM: %d bytes\n", ESP.getFreeHeap());
   Serial.print("Network: ");
   Serial.println(WiFi.SSID()); 
   Serial.print("IP Address: ");
   Serial.println(WiFi.localIP());
+
+  // =================================================================
+  // THE SSL FIX: FORCE TIME SYNCHRONIZATION
+  // =================================================================
+  Serial.print("Syncing internal clock for SSL...");
+  configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+  
+  // Wait until the ESP32 realizes it is not 1970 anymore
+  while (time(nullptr) < 100000) {
+    Serial.print(".");
+    delay(500);
+  }
+  Serial.println("\nClock synced! We are in the present.");
+  // =================================================================
 
   ArduinoOTA.setHostname("cafe-alarm-esp32c6");
   ArduinoOTA.begin();
