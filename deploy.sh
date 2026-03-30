@@ -1,15 +1,14 @@
 #!/bin/bash
 
-# 1. Grab the current date and time
-TIMESTAMP=$(date +"%b %d, %Y - %H:%M:%S")
-echo "Deploying Version: $TIMESTAMP"
+# Grab the exact YYMMDDHHMMSS format
+TIMESTAMP=$(date +"%y%m%d%H%M%S")
+echo "Deploying Version: FW: $TIMESTAMP"
 
-# 2. Automatically find the version span in index.html and inject the new timestamp
-sed -i '' "s|<span id=\"fw-version\">.*</span>|<span id=\"fw-version\">$TIMESTAMP</span>|g" web-app/index.html
+# Inject it into the HTML
+sed -i '' "s|<span id=\"fw-version\">.*</span>|<span id=\"fw-version\">FW: $TIMESTAMP</span>|g" web-app/index.html
 
-# 3. Standard Git Push
 git add .
-git commit -m "Auto-Deploy: $TIMESTAMP"
+git commit -m "Auto-Deploy: FW: $TIMESTAMP"
 git push origin main
 
 echo "Deployment Sent to GitHub!"

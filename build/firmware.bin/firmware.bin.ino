@@ -26,6 +26,7 @@ static const int PIN_AMP_SD   = 20;
 
 // --- FIREBASE OBJECTS ---
 FirebaseData fbdo;
+FirebaseData fbdo_log;
 FirebaseAuth auth;
 FirebaseConfig config;
 bool signupOK = false;
@@ -131,7 +132,7 @@ void audioTask(void * pvParameters) {
 }
 
 // =========================================================================
-// CLOUD LOGGING UTILITY
+// CLOUD LOGGING UTILITY (Asynchronous, Non-Blocking)
 // =========================================================================
 void logToCloud(String message) {
   Serial.println(message);
@@ -139,19 +140,18 @@ void logToCloud(String message) {
     struct tm timeinfo;
     String timeString;
     
-    // Check if the ESP32 knows the real time
     if (getLocalTime(&timeinfo, 10)) {
       char timeFmt[20];
-      // Format: Mar 30 22:15:00
       strftime(timeFmt, sizeof(timeFmt), "%b %d %H:%M:%S", &timeinfo);
       timeString = String(timeFmt);
     } else {
-      // Fallback if time sync failed
       timeString = "T+" + String(millis() / 1000) + "s";
     }
     
     String uniqueLog = "[" + timeString + "] " + message;
-    Firebase.RTDB.setString(&fbdo, "/system/latest_log", uniqueLog);
+    
+    // ASYNC FIX: Pushes log to the background. Zero CPU blocking!
+    Firebase.RTDB.setStringAsync(&fbdo_log, "/system/latest_log", uniqueLog); 
   }
 }
 
@@ -302,7 +302,14 @@ void loop() {
         if (doc.containsKey("wobble_active")) wobbleActive = doc["wobble_active"];
         if (doc.containsKey("wobble_speed")) wobbleSpeed = doc["wobble_speed"];
         
-        if (doc.containsKey("periodic_active")) periodicActive = doc["periodic_active"];
+        // Update state and log if the toggle was flipped!
+        if (doc.containsKey("periodic_active")) {
+          bool newState = doc["periodic_active"];
+          if (newState != periodicActive) {
+            periodicActive = newState;
+            logToCloud(periodicActive ? "Periodic Beep: ENABLED" : "Periodic Beep: DISABLED");
+          }
+        }
         if (doc.containsKey("periodic_sec")) periodicSecs = doc["periodic_sec"];
         if (doc.containsKey("periodic_vol")) periodicVolume = constrain(doc["periodic_vol"].as<int>(), 0, 100) / 100.0;
         if (doc.containsKey("periodic_freq")) periodicFreq = doc["periodic_freq"];

@@ -11,17 +11,14 @@
         :root { --bg: #f4f4f4; --text: #000; --terminal-bg: #111; --terminal-text: #0f0; --accent: #d32f2f; }
         body { font-family: monospace; background-color: var(--bg); color: var(--text); padding: 20px; margin: 0; display: flex; flex-direction: column; align-items: center; }
         
-        /* Auth Overlay */
         #auth-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 1000; color: white; }
         #auth-screen input { padding: 10px; font-family: monospace; font-size: 1.2rem; text-align: center; border: 2px solid white; background: black; color: white; width: 200px; margin-bottom: 15px; }
         #auth-screen button { padding: 10px 20px; font-family: monospace; font-size: 1rem; cursor: pointer; background: white; color: black; border: none; font-weight: bold; }
         
-        /* Main Layout */
         .container { max-width: 500px; width: 100%; display: none; }
         .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid var(--text); padding-bottom: 10px; margin-bottom: 20px; }
-        .header h1 { margin: 0; font-size: 1.5rem; letter-spacing: 2px; }
+        .header h1 { margin: 0; font-size: 1.2rem; letter-spacing: 2px; }
         
-        /* Status Badges */
         .status-badge { padding: 5px 10px; font-weight: bold; border: 2px solid #000; font-size: 0.9rem; }
         .bg-grey { background-color: #ccc; color: #000; }
         .bg-green { background-color: #0f0; color: #000; }
@@ -38,22 +35,24 @@
         .btn-solid { background: #000; color: #fff; border: 2px solid #000; padding: 15px; font-family: monospace; font-weight: bold; width: 100%; cursor: pointer; }
         .btn-solid:active { background: #333; }
 
-        /* Foldable Details */
-        details { border: 2px solid var(--text); padding: 10px; background: #fff; margin-bottom: 20px; box-shadow: 4px 4px 0px var(--text); }
-        summary { font-weight: bold; cursor: pointer; outline: none; text-transform: uppercase; list-style: none; }
-        summary::-webkit-details-marker { display: none; }
-        summary::before { content: "► "; }
-        details[open] summary::before { content: "▼ "; }
-        
-        .terminal { background-color: var(--terminal-bg); color: var(--terminal-text); padding: 1rem; font-size: 0.85rem; height: 150px; overflow-y: auto; border: 2px solid var(--text); margin-top: 15px; margin-bottom: 15px; }
-        .version-text { font-size: 0.8rem; color: #666; text-align: right; margin-top: 5px; }
+        /* Modern CSS Toggles */
+        .switch-container { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; font-weight: bold; text-transform: uppercase; }
+        .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider-toggle { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #555; transition: .3s; border-radius: 24px; border: 2px solid #000; }
+        .slider-toggle:before { position: absolute; content: ""; height: 16px; width: 16px; left: 2px; bottom: 2px; background-color: white; transition: .3s; border-radius: 50%; }
+        input:checked + .slider-toggle { background-color: #0f0; }
+        input:checked + .slider-toggle:before { transform: translateX(20px); }
+
+        .terminal { background-color: var(--terminal-bg); color: var(--terminal-text); padding: 1rem; font-size: 0.85rem; height: 150px; overflow-y: auto; border: 2px solid var(--text); margin-bottom: 15px; }
+        .version-text { font-size: 0.9rem; font-weight: bold; color: #444; text-align: center; margin-top: 15px; }
     </style>
 </head>
 <body>
 
     <div id="auth-screen">
         <h2>ENTER SYSTEM PASSCODE</h2>
-        <input type="password" id="passcode-input" placeholder="****">
+        <input type="password" id="passcode-input" placeholder="****" onkeypress="if(event.key === 'Enter') login()">
         <button id="auth-btn" onclick="login()">AUTHENTICATE</button>
         <p id="auth-error" style="color: red; display: none; margin-top:10px;">INVALID PASSCODE</p>
     </div>
@@ -91,29 +90,29 @@
             <input type="range" id="siren-speed" min="1" max="50" value="10" onchange="saveSettings()">
 
             <div style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed var(--text);">
-                <label style="display: flex; align-items: center; gap: 10px;">
-                    <input type="checkbox" id="wobble-toggle" onchange="saveSettings()"> 
-                    ENABLE WOBBLE EFFECT (LFO)
-                </label>
-                <label style="margin-top: 10px;">WOBBLE SPEED: <span id="wspeed-val">15</span></label>
+                <div class="switch-container">
+                    <label class="switch"><input type="checkbox" id="wobble-toggle" onchange="saveSettings()"><span class="slider-toggle"></span></label>
+                    <span>ENABLE WOBBLE EFFECT (LFO)</span>
+                </div>
+                <label>WOBBLE SPEED: <span id="wspeed-val">15</span></label>
                 <input type="range" id="wobble-speed" min="1" max="50" value="15" onchange="saveSettings()">
             </div>
         </div>
 
         <div class="card">
-            <label style="display: flex; align-items: center; gap: 10px;">
-                <input type="checkbox" id="periodic-toggle" onchange="saveSettings()"> 
+            <div class="switch-container" style="margin-bottom: 5px;">
+                <label class="switch"><input type="checkbox" id="periodic-toggle" onchange="saveSettings()"><span class="slider-toggle"></span></label>
                 <span id="periodic-title">PERIODIC BEEP EVERY 30 SEC</span>
-            </label>
+            </div>
             
-            <div style="margin-top: 15px; padding-left: 10px; border-left: 2px solid var(--text);">
+            <div style="margin-top: 10px; padding-left: 10px; border-left: 2px solid var(--text);">
                 <label>Interval (Seconds):</label>
-                <input type="number" id="periodic-sec" value="30" style="width: 100px; padding: 5px;" onchange="updatePeriodicTitle(); saveSettings()">
+                <input type="number" id="periodic-sec" value="30" style="width: 100px; padding: 5px; margin-bottom: 10px;" onchange="updatePeriodicTitle(); saveSettings()">
                 
-                <label style="margin-top: 10px;">Beep Length (Seconds):</label>
+                <label>Beep Length (Seconds):</label>
                 <input type="number" id="periodic-len" value="0.1" step="0.1" style="width: 100px; padding: 5px;" onchange="saveSettings()">
 
-                <label style="margin-top: 10px;">BEEP FREQUENCY: <span id="pfreq-val">1000Hz</span></label>
+                <label style="margin-top: 15px;">BEEP FREQUENCY: <span id="pfreq-val">1000Hz</span></label>
                 <input type="range" id="periodic-freq" min="300" max="2500" step="50" value="1000" onchange="saveSettings()">
 
                 <label style="margin-top: 10px;">BEEP VOLUME: <span id="pvol-val">50%</span></label>
@@ -121,102 +120,93 @@
             </div>
         </div>
 
-        <details>
-            <summary>SYSTEM SETTINGS & LOGS</summary>
+        <div class="card">
+            <label style="margin-bottom: 15px;">SYSTEM SETTINGS & LOGS</label>
             
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px; margin-bottom: 15px;">
-                <label style="display: flex; align-items: center; gap: 10px; margin: 0;">
-                    <input type="checkbox" id="amp-toggle" checked onchange="saveSettings()"> 
-                    AMP HARDWARE POWER
-                </label>
+            <div class="switch-container" style="justify-content: space-between;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <label class="switch"><input type="checkbox" id="amp-toggle" checked onchange="saveSettings()"><span class="slider-toggle"></span></label>
+                    <span>AMP HARDWARE POWER</span>
+                </div>
                 <button class="btn-outline" style="padding: 5px 10px; font-size: 0.8rem; border-color: #000; color: #000;" onclick="rebootESP()">REBOOT ESP32</button>
             </div>
 
             <div class="terminal" id="live-log">Loading system logs...</div>
+            <button class="btn-outline" style="width: 100%; margin-bottom: 10px;" onclick="updateFirmware()">PULL LATEST GITHUB BUILD (OTA)</button>
+            <button class="btn-outline" style="width: 100%; border-color: #000; color: #000;" onclick="logout()">LOG OUT / CLEAR CACHE</button>
             
-            <button class="btn-outline" style="width: 100%;" onclick="updateFirmware()">PULL LATEST GITHUB BUILD (OTA)</button>
-            
-            <div class="version-text">
-                FIRMWARE VERSION: <span id="fw-version">Mar 30, 2026 - 22:24:53</span>
-            </div>
-        </details>
-
-        <button class="btn-outline" style="width: 100%; border-color: #000; color: #000; margin-bottom: 50px;" onclick="location.reload()">LOG OUT / CLEAR CACHE</button>
+            <div class="version-text"><span id="fw-version">FW: 260330224540</span></div>
+        </div>
     </div>
 
     <script>
-        let db, functions;
-        
-        // 1. Bulletproof Initialization
-        try {
-            const firebaseConfig = {
-                projectId: "untitledcafe-bfd05",
-                databaseURL: "https://untitledcafe-bfd05-default-rtdb.europe-west1.firebasedatabase.app"
-            };
-            firebase.initializeApp(firebaseConfig);
-            db = firebase.database();
-            functions = firebase.app().functions();
-        } catch (e) {
-            alert("SYSTEM FATAL ERROR: Firebase failed to load. " + e.message);
-        }
+        const firebaseConfig = { projectId: "untitledcafe-bfd05", databaseURL: "https://untitledcafe-bfd05-default-rtdb.europe-west1.firebasedatabase.app" };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        const functions = firebase.app().functions(); 
 
         let sessionPasscode = "";
 
-        // 2. Real Server-Side Authentication
+        // Auto-Login Check
+        window.onload = function() {
+            const savedPin = localStorage.getItem("system_pin");
+            if (savedPin) {
+                document.getElementById('passcode-input').value = savedPin;
+                login();
+            }
+        };
+
         async function login() {
             const btn = document.getElementById('auth-btn');
             const err = document.getElementById('auth-error');
-            
             sessionPasscode = document.getElementById('passcode-input').value;
-            btn.innerText = "VERIFYING..."; // Show the user we are doing work
+            btn.innerText = "VERIFYING..."; 
             err.style.display = 'none';
 
             try {
-                // Ask the server if the passcode is right BEFORE letting them in
                 const secureCommand = functions.httpsCallable('secureCommand');
                 await secureCommand({ pin: sessionPasscode, action: "verify_passcode" });
                 
-                // Server said YES
+                localStorage.setItem("system_pin", sessionPasscode); // Save on success
                 document.getElementById('auth-screen').style.display = 'none';
                 document.getElementById('main-app').style.display = 'block';
                 setupSystemMonitors();
             } catch (error) {
-                // Server said NO
                 btn.innerText = "AUTHENTICATE";
                 err.style.display = 'block';
-                err.innerText = "ACCESS DENIED: " + (error.message || "Invalid Passcode");
+                err.innerText = "ACCESS DENIED";
+                localStorage.removeItem("system_pin");
             }
         }
 
-        // --- LABEL SYNCING ---
-        const ids = ['volume', 'siren-min', 'siren-max', 'siren-speed', 'wobble-speed', 'periodic-freq', 'periodic-vol'];
-        ids.forEach(id => {
-            const el = document.getElementById(id);
-            if(el) {
-                el.addEventListener('input', function() {
-                    let val = this.value;
-                    if(id.includes('vol')) val += '%';
-                    else if(id.includes('freq') || id.includes('min') || id.includes('max')) val += 'Hz';
-                    document.getElementById(id.replace('volume', 'vol').split('-')[0].substring(0,5) + id.replace('volume', 'vol').split('-').pop() + '-val').innerText = val; 
-                });
-            }
-        });
+        function logout() {
+            localStorage.removeItem("system_pin");
+            location.reload();
+        }
+
+        // Fix Slider Labels
+        function updateLabels() {
+            document.getElementById('vol-val').innerText = document.getElementById('volume').value + '%';
+            document.getElementById('smin-val').innerText = document.getElementById('siren-min').value + 'Hz';
+            document.getElementById('smax-val').innerText = document.getElementById('siren-max').value + 'Hz';
+            document.getElementById('sspeed-val').innerText = document.getElementById('siren-speed').value;
+            document.getElementById('wspeed-val').innerText = document.getElementById('wobble-speed').value;
+            document.getElementById('pfreq-val').innerText = document.getElementById('periodic-freq').value + 'Hz';
+            document.getElementById('pvol-val').innerText = document.getElementById('periodic-vol').value + '%';
+        }
+        document.querySelectorAll('input[type="range"]').forEach(el => { el.addEventListener('input', updateLabels); });
 
         function updatePeriodicTitle() {
             document.getElementById('periodic-title').innerText = `PERIODIC BEEP EVERY ${document.getElementById('periodic-sec').value} SEC`;
         }
 
-        // --- CLOUD COMMANDS ---
         async function sendCommand(action, payload = {}) {
             try {
                 const secureCommand = functions.httpsCallable('secureCommand');
                 await secureCommand({ pin: sessionPasscode, action, payload });
             } catch (error) {
                 console.error("Command failed:", error);
-                if (error.message.includes("ACCESS DENIED")) {
-                    alert("ACCESS DENIED: Invalid Passcode.");
-                    location.reload();
-                }
+                if (error.message.includes("ACCESS DENIED")) logout();
             }
         }
 
@@ -246,19 +236,11 @@
             if(url) await sendCommand("sync_firmware", { url });
         }
 
-        // --- SYSTEM MONITORS (Logs & Online Status) ---
         function setupSystemMonitors() {
             let logHistory = [];
-            let isFirstLoad = true; 
             db.ref('system/latest_log').on('value', (snapshot) => {
                 if (snapshot.val()) {
-                    if (isFirstLoad) {
-                        isFirstLoad = false;
-                        logHistory.push(`<span style="color:#888;">> Last known state: ${snapshot.val()}</span>`);
-                    } else {
-                        const time = new Date().toLocaleTimeString('en-US', { hour12: false });
-                        logHistory.push(`[${time}] > ${snapshot.val()}`);
-                    }
+                    logHistory.push(`> ${snapshot.val()}`);
                     if (logHistory.length > 50) logHistory.shift(); 
                     const logBox = document.getElementById('live-log');
                     logBox.innerHTML = logHistory.join('<br>');
@@ -270,8 +252,7 @@
             db.ref('system/last_ping').on('value', (snapshot) => {
                 const lastPing = snapshot.val();
                 if (lastPing) {
-                    const now = Date.now();
-                    if (now - lastPing > 20000) {
+                    if (Date.now() - lastPing > 20000) {
                         statusBadge.className = "status-badge bg-red";
                         statusBadge.innerText = "OFFLINE";
                     } else {
