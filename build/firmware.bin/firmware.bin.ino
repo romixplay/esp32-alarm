@@ -60,8 +60,8 @@ void logToCloud(String message) {
 // FREERTOS AUDIO TASK (Optimized for Single-Core ESP32-C6)
 // =========================================================================
 void audioTask(void * pvParameters) {
-  const int BATCH_SIZE = 1024; // Increased from 64 to give Wi-Fi room to breathe
-  uint16_t sample[BATCH_SIZE];
+  const int BATCH_SIZE = 512; 
+  int16_t sample[BATCH_SIZE];
   size_t bytes_written;
   bool wasPlaying = false; 
   
@@ -72,13 +72,16 @@ void audioTask(void * pvParameters) {
         wasPlaying = true;
       }
       
-      // Generate a larger chunk of audio
+      // Fast Integer math (No floats!)
       for(int i = 0; i < BATCH_SIZE; i++) {
-        float rawWave = (i % 20 < 10) ? 15000.0 : -15000.0; 
+        int rawWave = (i % 20 < 10) ? 15000 : -15000; 
         sample[i] = (int16_t)(rawWave * currentVolume);
       }
-      // i2s_write automatically blocks/yields until the DMA buffer needs more data
       i2s_write(I2S_NUM_0, &sample, sizeof(sample), &bytes_written, portMAX_DELAY);
+      
+      // THE MAGIC FIX: Force the FreeRTOS scheduler to pause audio for 1ms
+      // to let the Wi-Fi stack reply to the router!
+      vTaskDelay(1 / portTICK_PERIOD_MS);
       
     } else {
       if (wasPlaying) {
@@ -154,7 +157,7 @@ void setup() {
     .communication_format = I2S_COMM_FORMAT_STAND_I2S,
     .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
     .dma_buf_count = 8,
-    .dma_buf_len = 64,
+    .dma_buf_len = 1024, // <--- INCREASE THIS TO 1024
     .use_apll = false,
     .tx_desc_auto_clear = true
   };
