@@ -1,7 +1,6 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 
-// THE FATAL FLAW FIXED: We must explicitly tell it where the European database is!
 admin.initializeApp({
     databaseURL: "https://untitledcafe-bfd05-default-rtdb.europe-west1.firebasedatabase.app"
 });
@@ -19,28 +18,22 @@ exports.secureCommand = functions.https.onCall(async (request_or_data, context) 
     }
     
     switch (action) {
-      case "verify_passcode":
-        break; // If it reaches this line, the passcode is correct!
+      case "verify_passcode": break;
       case "trigger_alarm":
         await db.ref("alarm_state").update({ trigger_time: Date.now(), duration: payload.duration, hold_trigger: false });
+        break;
+      case "stop_alarm":
+        await db.ref("alarm_state").update({ stop_trigger: Date.now(), hold_trigger: false });
         break;
       case "hold_alarm":
         await db.ref("alarm_state").update({ hold_trigger: payload.active });
         break;
       case "update_settings":
         await db.ref("alarm_state").update({ 
-            volume: payload.volume,
-            siren_min: payload.siren_min,
-            siren_max: payload.siren_max,
-            siren_speed: payload.siren_speed,
-            wobble_active: payload.wobble_active,
-            wobble_speed: payload.wobble_speed,
-            periodic_active: payload.periodic_active,
-            periodic_sec: payload.periodic_sec,
-            periodic_vol: payload.periodic_vol,
-            periodic_freq: payload.periodic_freq,
-            periodic_len: payload.periodic_len,
-            amp_enabled: payload.amp_enabled
+            volume: payload.volume, siren_min: payload.siren_min, siren_max: payload.siren_max,
+            siren_speed: payload.siren_speed, wobble_active: payload.wobble_active, wobble_speed: payload.wobble_speed,
+            periodic_active: payload.periodic_active, periodic_sec: payload.periodic_sec, periodic_vol: payload.periodic_vol,
+            periodic_freq: payload.periodic_freq, periodic_len: payload.periodic_len, amp_enabled: payload.amp_enabled
         });
         break;
       case "reboot_esp":
@@ -49,11 +42,8 @@ exports.secureCommand = functions.https.onCall(async (request_or_data, context) 
       case "sync_firmware":
         await db.ref("system").update({ ota_url: payload.url });
         break;
-      default:
-        throw new Error("Unknown command.");
+      default: throw new Error("Unknown command.");
     }
     return { success: true };
-  } catch (error) {
-    throw new functions.https.HttpsError("unknown", error.message);
-  }
+  } catch (error) { throw new functions.https.HttpsError("unknown", error.message); }
 });

@@ -32,10 +32,9 @@
         .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
         .btn-outline { background: transparent; border: 2px solid var(--accent); color: var(--accent); padding: 12px; font-family: monospace; font-weight: bold; cursor: pointer; transition: 0.2s; }
         .btn-outline:active { background: var(--accent); color: white; }
-        .btn-solid { background: #000; color: #fff; border: 2px solid #000; padding: 15px; font-family: monospace; font-weight: bold; width: 100%; cursor: pointer; }
+        .btn-solid { background: #000; color: #fff; border: 2px solid #000; padding: 15px; font-family: monospace; font-weight: bold; width: 100%; cursor: pointer; text-align: center; }
         .btn-solid:active { background: #333; }
 
-        /* Modern CSS Toggles */
         .switch-container { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; font-weight: bold; text-transform: uppercase; }
         .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
         .switch input { opacity: 0; width: 0; height: 0; }
@@ -71,7 +70,10 @@
                 <button class="btn-outline" onclick="triggerAlarm(10)">SOUND (10s)</button>
                 <button class="btn-outline" onclick="triggerAlarm(30)">SOUND (30s)</button>
             </div>
-            <button class="btn-solid" onmousedown="holdAlarm(true)" onmouseup="holdAlarm(false)" onmouseleave="holdAlarm(false)" ontouchstart="holdAlarm(true)" ontouchend="holdAlarm(false)">HOLD TO PLAY</button>
+            <div class="btn-grid">
+                <button class="btn-solid" onmousedown="holdAlarm(true)" onmouseup="holdAlarm(false)" onmouseleave="holdAlarm(false)" ontouchstart="holdAlarm(true)" ontouchend="holdAlarm(false)">HOLD TO PLAY</button>
+                <button class="btn-solid" style="background: var(--accent); border-color: var(--accent);" onclick="stopAlarm()">STOP</button>
+            </div>
         </div>
 
         <div class="card">
@@ -135,7 +137,7 @@
             <button class="btn-outline" style="width: 100%; margin-bottom: 10px;" onclick="updateFirmware()">PULL LATEST GITHUB BUILD (OTA)</button>
             <button class="btn-outline" style="width: 100%; border-color: #000; color: #000;" onclick="logout()">LOG OUT / CLEAR CACHE</button>
             
-            <div class="version-text"><span id="fw-version">FW: 260330224540</span></div>
+            <div class="version-text"><span id="fw-version">FW: 260330233653</span></div>
         </div>
     </div>
 
@@ -147,7 +149,6 @@
 
         let sessionPasscode = "";
 
-        // Auto-Login Check
         window.onload = function() {
             const savedPin = localStorage.getItem("system_pin");
             if (savedPin) {
@@ -167,9 +168,11 @@
                 const secureCommand = functions.httpsCallable('secureCommand');
                 await secureCommand({ pin: sessionPasscode, action: "verify_passcode" });
                 
-                localStorage.setItem("system_pin", sessionPasscode); // Save on success
+                localStorage.setItem("system_pin", sessionPasscode); 
                 document.getElementById('auth-screen').style.display = 'none';
                 document.getElementById('main-app').style.display = 'block';
+                
+                syncUI(); // Fetch reality before enabling monitors
                 setupSystemMonitors();
             } catch (error) {
                 btn.innerText = "AUTHENTICATE";
@@ -179,12 +182,34 @@
             }
         }
 
+        // --- THE UI SYNC FUNCTION (Fixes Sliders/LFO bugs) ---
+        function syncUI() {
+            db.ref('alarm_state').once('value').then((snap) => {
+                const data = snap.val();
+                if(data) {
+                    if(data.volume !== undefined) document.getElementById('volume').value = data.volume;
+                    if(data.siren_min !== undefined) document.getElementById('siren-min').value = data.siren_min;
+                    if(data.siren_max !== undefined) document.getElementById('siren-max').value = data.siren_max;
+                    if(data.siren_speed !== undefined) document.getElementById('siren-speed').value = data.siren_speed;
+                    if(data.wobble_active !== undefined) document.getElementById('wobble-toggle').checked = data.wobble_active;
+                    if(data.wobble_speed !== undefined) document.getElementById('wobble-speed').value = data.wobble_speed;
+                    if(data.periodic_active !== undefined) document.getElementById('periodic-toggle').checked = data.periodic_active;
+                    if(data.periodic_sec !== undefined) document.getElementById('periodic-sec').value = data.periodic_sec;
+                    if(data.periodic_len !== undefined) document.getElementById('periodic-len').value = data.periodic_len;
+                    if(data.periodic_freq !== undefined) document.getElementById('periodic-freq').value = data.periodic_freq;
+                    if(data.periodic_vol !== undefined) document.getElementById('periodic-vol').value = data.periodic_vol;
+                    if(data.amp_enabled !== undefined) document.getElementById('amp-toggle').checked = data.amp_enabled;
+                    updateLabels();
+                    updatePeriodicTitle();
+                }
+            });
+        }
+
         function logout() {
             localStorage.removeItem("system_pin");
             location.reload();
         }
 
-        // Fix Slider Labels
         function updateLabels() {
             document.getElementById('vol-val').innerText = document.getElementById('volume').value + '%';
             document.getElementById('smin-val').innerText = document.getElementById('siren-min').value + 'Hz';
@@ -213,23 +238,18 @@
         async function saveSettings() {
             updatePeriodicTitle();
             await sendCommand("update_settings", {
-                volume: parseInt(document.getElementById('volume').value),
-                siren_min: parseInt(document.getElementById('siren-min').value),
-                siren_max: parseInt(document.getElementById('siren-max').value),
-                siren_speed: parseInt(document.getElementById('siren-speed').value),
-                wobble_active: document.getElementById('wobble-toggle').checked,
-                wobble_speed: parseInt(document.getElementById('wobble-speed').value),
-                periodic_active: document.getElementById('periodic-toggle').checked,
-                periodic_sec: parseInt(document.getElementById('periodic-sec').value),
-                periodic_vol: parseInt(document.getElementById('periodic-vol').value),
-                periodic_freq: parseInt(document.getElementById('periodic-freq').value),
-                periodic_len: parseFloat(document.getElementById('periodic-len').value),
-                amp_enabled: document.getElementById('amp-toggle').checked
+                volume: parseInt(document.getElementById('volume').value), siren_min: parseInt(document.getElementById('siren-min').value),
+                siren_max: parseInt(document.getElementById('siren-max').value), siren_speed: parseInt(document.getElementById('siren-speed').value),
+                wobble_active: document.getElementById('wobble-toggle').checked, wobble_speed: parseInt(document.getElementById('wobble-speed').value),
+                periodic_active: document.getElementById('periodic-toggle').checked, periodic_sec: parseInt(document.getElementById('periodic-sec').value),
+                periodic_vol: parseInt(document.getElementById('periodic-vol').value), periodic_freq: parseInt(document.getElementById('periodic-freq').value),
+                periodic_len: parseFloat(document.getElementById('periodic-len').value), amp_enabled: document.getElementById('amp-toggle').checked
             });
         }
 
         async function triggerAlarm(seconds) { await sendCommand("trigger_alarm", { duration: seconds }); }
         async function holdAlarm(state) { await sendCommand("hold_alarm", { active: state }); }
+        async function stopAlarm() { await sendCommand("stop_alarm"); }
         async function rebootESP() { if(confirm("Are you sure you want to hard reset the ESP32?")) { await sendCommand("reboot_esp"); } }
         async function updateFirmware() {
             const url = prompt("Enter raw GitHub firmware URL (.bin):", "https://romixplay.github.io/esp32-alarm/firmware.bin");
@@ -240,6 +260,7 @@
             let logHistory = [];
             db.ref('system/latest_log').on('value', (snapshot) => {
                 if (snapshot.val()) {
+                    // Removed the double-timestamping formatting here!
                     logHistory.push(`> ${snapshot.val()}`);
                     if (logHistory.length > 50) logHistory.shift(); 
                     const logBox = document.getElementById('live-log');

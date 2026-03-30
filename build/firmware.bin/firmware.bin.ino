@@ -35,7 +35,8 @@ bool signupOK = false;
 unsigned long lastHeartbeat = 0;
 unsigned long lastAlarmPoll = 0;
 unsigned long lastAdminPoll = 0;
-double lastProcessedTrigger = 0; 
+double lastProcessedTrigger = 0;
+double lastStopTrigger = 0;
 
 // --- DYNAMIC AUDIO ENGINE CONFIG ---
 volatile int audioMode = 0; 
@@ -139,7 +140,6 @@ void logToCloud(String message) {
   if (Firebase.ready() && signupOK) {
     struct tm timeinfo;
     String timeString;
-    
     if (getLocalTime(&timeinfo, 10)) {
       char timeFmt[20];
       strftime(timeFmt, sizeof(timeFmt), "%b %d %H:%M:%S", &timeinfo);
@@ -147,11 +147,8 @@ void logToCloud(String message) {
     } else {
       timeString = "T+" + String(millis() / 1000) + "s";
     }
-    
     String uniqueLog = "[" + timeString + "] " + message;
-    
-    // ASYNC FIX: Pushes log to the background. Zero CPU blocking!
-    Firebase.RTDB.setStringAsync(&fbdo_log, "/system/latest_log", uniqueLog); 
+    Firebase.RTDB.setString(&fbdo, "/system/latest_log", uniqueLog); 
   }
 }
 
@@ -258,25 +255,34 @@ void loop() {
   if (Firebase.ready() && signupOK) {
     
     // ---------------------------------------------------------
-    // 1. FAST HARDWARE LOGIC (Evaluates Audio Routing)
+    // 1. FAST HARDWARE LOGIC (Bulletproof Routing)
     // ---------------------------------------------------------
-    if (holdTriggerActive || (millis() < alarmEndTime)) {
-      audioMode = 1; // Play Siren
-    } 
-    else if (periodicActive && (millis() - lastPeriodicTrigger > (periodicSecs * 1000))) {
-      lastPeriodicTrigger = millis();
-      periodicEndTime = millis() + (periodicLen * 1000);
-      logToCloud("Periodic beep triggered.");
+    if (!ampEnabled) {
+      // If the AMP is switched off, brutally kill all active timers and silence the synth
+      alarmEndTime = 0;
+      periodicEndTime = 0;
+      holdTriggerActive = false;
+      audioMode = 0;
+    } else {
+      bool mainAlarmActive = holdTriggerActive || (millis() < alarmEndTime);
+      bool beepActive = false;
+
+      // Handle Periodic Beep Timer
+      if (periodicActive && (millis() - lastPeriodicTrigger > (periodicSecs * 1000))) {
+        lastPeriodicTrigger = millis();
+        periodicEndTime = millis() + (periodicLen * 1000);
+        logToCloud("Periodic beep triggered.");
+      }
+      if (millis() < periodicEndTime) beepActive = true;
+
+      // The Strict Priority Router
+      if (mainAlarmActive) audioMode = 1;      // Siren wins
+      else if (beepActive) audioMode = 2; // Beep plays if Siren is quiet
+      else audioMode = 0;                 // SILENCE (Fixes the infinite alarm bug!)
     }
 
-    // Route the periodic beep if the main alarm is quiet
-    if (audioMode != 1) {
-      if (millis() < periodicEndTime) audioMode = 2; // Play Beep
-      else audioMode = 0; // Silence
-    }
-
     // ---------------------------------------------------------
-    // 2. ALARM POLLING (Every 1 Second)
+    // 2. ALARM POLLING (Every 2.5 Seconds)
     // ---------------------------------------------------------
     if (millis() - lastAlarmPoll > 2500) {
       lastAlarmPoll = millis();
@@ -285,8 +291,10 @@ void loop() {
         StaticJsonDocument<1024> doc;
         deserializeJson(doc, fbdo.to<String>());
 
-        // Hardware Controls
-        if (doc.containsKey("amp_enabled")) ampEnabled = doc["amp_enabled"];
+        // Strict Type Parsing for Toggles
+        if (doc.containsKey("amp_enabled")) ampEnabled = doc["amp_enabled"].as<bool>();
+        if (doc.containsKey("wobble_active")) wobbleActive = doc["wobble_active"].as<bool>();
+        
         if (doc.containsKey("force_reboot") && doc["force_reboot"] == true) {
             Firebase.RTDB.setBool(&fbdo, "/alarm_state/force_reboot", false);
             logToCloud("Hardware Reboot Triggered.");
@@ -296,33 +304,42 @@ void loop() {
 
         // Settings Sync
         if (doc.containsKey("volume")) mainVolume = constrain(doc["volume"].as<int>(), 0, 100) / 100.0;
-        if (doc.containsKey("siren_min")) sirenMinFreq = doc["siren_min"];
-        if (doc.containsKey("siren_max")) sirenMaxFreq = doc["siren_max"];
-        if (doc.containsKey("siren_speed")) sirenSpeed = doc["siren_speed"];
-        if (doc.containsKey("wobble_active")) wobbleActive = doc["wobble_active"];
-        if (doc.containsKey("wobble_speed")) wobbleSpeed = doc["wobble_speed"];
+        if (doc.containsKey("siren_min")) sirenMinFreq = doc["siren_min"].as<int>();
+        if (doc.containsKey("siren_max")) sirenMaxFreq = doc["siren_max"].as<int>();
+        if (doc.containsKey("siren_speed")) sirenSpeed = doc["siren_speed"].as<int>();
+        if (doc.containsKey("wobble_speed")) wobbleSpeed = doc["wobble_speed"].as<int>();
         
-        // Update state and log if the toggle was flipped!
+        if (doc.containsKey("periodic_sec")) periodicSecs = doc["periodic_sec"].as<int>();
+        if (doc.containsKey("periodic_vol")) periodicVolume = constrain(doc["periodic_vol"].as<int>(), 0, 100) / 100.0;
+        if (doc.containsKey("periodic_freq")) periodicFreq = doc["periodic_freq"].as<int>();
+        if (doc.containsKey("periodic_len")) periodicLen = doc["periodic_len"].as<float>();
+        if (doc.containsKey("hold_trigger")) holdTriggerActive = doc["hold_trigger"].as<bool>();
+
+        // Toggle Logging
         if (doc.containsKey("periodic_active")) {
-          bool newState = doc["periodic_active"];
+          bool newState = doc["periodic_active"].as<bool>();
           if (newState != periodicActive) {
             periodicActive = newState;
             logToCloud(periodicActive ? "Periodic Beep: ENABLED" : "Periodic Beep: DISABLED");
           }
         }
-        if (doc.containsKey("periodic_sec")) periodicSecs = doc["periodic_sec"];
-        if (doc.containsKey("periodic_vol")) periodicVolume = constrain(doc["periodic_vol"].as<int>(), 0, 100) / 100.0;
-        if (doc.containsKey("periodic_freq")) periodicFreq = doc["periodic_freq"];
-        if (doc.containsKey("periodic_len")) periodicLen = doc["periodic_len"].as<float>();
-        
-        if (doc.containsKey("hold_trigger")) holdTriggerActive = doc["hold_trigger"];
 
-        // THE GHOST TRIGGER FIX
+        // Stop Trigger
+        if (doc.containsKey("stop_trigger")) {
+          double currentStop = doc["stop_trigger"].as<double>();
+          if (currentStop > lastStopTrigger) {
+            lastStopTrigger = currentStop;
+            alarmEndTime = 0; // Kill timer
+            holdTriggerActive = false; // Release hold
+            logToCloud("ALARM FORCE STOPPED.");
+          }
+        }
+
+        // Start Trigger
         if (doc.containsKey("trigger_time")) {
           double currentTrigger = doc["trigger_time"].as<double>();
-          
           if (isFirstBootSync) {
-            lastProcessedTrigger = currentTrigger; // Silently sync the clock
+            lastProcessedTrigger = currentTrigger; 
             isFirstBootSync = false;
           } 
           else if (currentTrigger > lastProcessedTrigger) {
