@@ -1,7 +1,10 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 
-admin.initializeApp();
+// THE FATAL FLAW FIXED: We must explicitly tell it where the European database is!
+admin.initializeApp({
+    databaseURL: "https://untitledcafe-bfd05-default-rtdb.europe-west1.firebasedatabase.app"
+});
 
 exports.secureCommand = functions.https.onCall(async (request_or_data, context) => {
   try {
@@ -10,11 +13,14 @@ exports.secureCommand = functions.https.onCall(async (request_or_data, context) 
 
     const db = admin.database();
     const passcodeSnapshot = await db.ref("system/passcode").once("value");
+    
     if (String(pin).trim() !== String(passcodeSnapshot.val()).trim()) {
       throw new Error(`ACCESS DENIED. Invalid Passcode.`);
     }
     
     switch (action) {
+      case "verify_passcode":
+        break; // If it reaches this line, the passcode is correct!
       case "trigger_alarm":
         await db.ref("alarm_state").update({ trigger_time: Date.now(), duration: payload.duration, hold_trigger: false });
         break;

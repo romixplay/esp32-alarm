@@ -54,7 +54,7 @@
     <div id="auth-screen">
         <h2>ENTER SYSTEM PASSCODE</h2>
         <input type="password" id="passcode-input" placeholder="****">
-        <button onclick="login()">AUTHENTICATE</button>
+        <button id="auth-btn" onclick="login()">AUTHENTICATE</button>
         <p id="auth-error" style="color: red; display: none; margin-top:10px;">INVALID PASSCODE</p>
     </div>
 
@@ -137,7 +137,7 @@
             <button class="btn-outline" style="width: 100%;" onclick="updateFirmware()">PULL LATEST GITHUB BUILD (OTA)</button>
             
             <div class="version-text">
-                FIRMWARE VERSION: <span id="fw-version">Mar 30, 2026 - 22:02:40</span>
+                FIRMWARE VERSION: <span id="fw-version">Mar 30, 2026 - 22:11:40</span>
             </div>
         </details>
 
@@ -145,33 +145,61 @@
     </div>
 
     <script>
-        // --- FIREBASE CONFIG ---
-        const firebaseConfig = {
-            projectId: "untitledcafe-bfd05",
-            databaseURL: "https://untitledcafe-bfd05-default-rtdb.europe-west1.firebasedatabase.app"
-        };
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.database();
-        const functions = firebase.functions('europe-west1'); // Adjust region if needed
+        let db, functions;
+        
+        // 1. Bulletproof Initialization
+        try {
+            const firebaseConfig = {
+                projectId: "untitledcafe-bfd05",
+                databaseURL: "https://untitledcafe-bfd05-default-rtdb.europe-west1.firebasedatabase.app"
+            };
+            firebase.initializeApp(firebaseConfig);
+            db = firebase.database();
+            functions = firebase.functions('europe-west1'); 
+        } catch (e) {
+            alert("SYSTEM FATAL ERROR: Firebase failed to load. " + e.message);
+        }
 
         let sessionPasscode = "";
 
-        function login() {
+        // 2. Real Server-Side Authentication
+        async function login() {
+            const btn = document.getElementById('auth-btn');
+            const err = document.getElementById('auth-error');
+            
             sessionPasscode = document.getElementById('passcode-input').value;
-            document.getElementById('auth-screen').style.display = 'none';
-            document.getElementById('main-app').style.display = 'block';
-            setupSystemMonitors();
+            btn.innerText = "VERIFYING..."; // Show the user we are doing work
+            err.style.display = 'none';
+
+            try {
+                // Ask the server if the passcode is right BEFORE letting them in
+                const secureCommand = functions.httpsCallable('secureCommand');
+                await secureCommand({ pin: sessionPasscode, action: "verify_passcode" });
+                
+                // Server said YES
+                document.getElementById('auth-screen').style.display = 'none';
+                document.getElementById('main-app').style.display = 'block';
+                setupSystemMonitors();
+            } catch (error) {
+                // Server said NO
+                btn.innerText = "AUTHENTICATE";
+                err.style.display = 'block';
+                err.innerText = "ACCESS DENIED: " + (error.message || "Invalid Passcode");
+            }
         }
 
         // --- LABEL SYNCING ---
         const ids = ['volume', 'siren-min', 'siren-max', 'siren-speed', 'wobble-speed', 'periodic-freq', 'periodic-vol'];
         ids.forEach(id => {
-            document.getElementById(id).addEventListener('input', function() {
-                let val = this.value;
-                if(id.includes('vol')) val += '%';
-                else if(id.includes('freq') || id.includes('min') || id.includes('max')) val += 'Hz';
-                document.getElementById(id.replace('volume', 'vol').split('-')[0].substring(0,5) + id.replace('volume', 'vol').split('-').pop() + '-val').innerText = val; 
-            });
+            const el = document.getElementById(id);
+            if(el) {
+                el.addEventListener('input', function() {
+                    let val = this.value;
+                    if(id.includes('vol')) val += '%';
+                    else if(id.includes('freq') || id.includes('min') || id.includes('max')) val += 'Hz';
+                    document.getElementById(id.replace('volume', 'vol').split('-')[0].substring(0,5) + id.replace('volume', 'vol').split('-').pop() + '-val').innerText = val; 
+                });
+            }
         });
 
         function updatePeriodicTitle() {
@@ -220,7 +248,6 @@
 
         // --- SYSTEM MONITORS (Logs & Online Status) ---
         function setupSystemMonitors() {
-            // Live Logs
             let logHistory = [];
             let isFirstLoad = true; 
             db.ref('system/latest_log').on('value', (snapshot) => {
@@ -239,13 +266,11 @@
                 }
             });
 
-            // Online Status Heartbeat
             const statusBadge = document.getElementById('status-indicator');
             db.ref('system/last_ping').on('value', (snapshot) => {
                 const lastPing = snapshot.val();
                 if (lastPing) {
                     const now = Date.now();
-                    // If ESP32 hasn't pinged in 20 seconds, it's offline
                     if (now - lastPing > 20000) {
                         statusBadge.className = "status-badge bg-red";
                         statusBadge.innerText = "OFFLINE";
