@@ -1,4 +1,5 @@
 #include <WiFi.h>
+#include <WiFiMulti.h>
 #include <Firebase_ESP_Client.h>
 #include <ArduinoOTA.h>
 #include <driver/i2s.h>
@@ -6,13 +7,13 @@
 #include <HTTPUpdate.h>
 #include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
+#include <esp_wifi.h>
 
 #include "addons/TokenHelper.h"
 #include "addons/RTDBHelper.h"
 
 // --- CREDENTIALS ---
-#define WIFI_SSID "Sadan"
-#define WIFI_PASSWORD "shamanshaman"
+WiFiMulti wifiMulti; // Create the Multi-WiFi object
 // REPLACE API_KEY WITH YOUR SECRET
 #define DATABASE_SECRET "l8mdVlybE4p0BDRcj5Z0n2lVAToOr1oRQ8TTMu53"
 #define DATABASE_URL "https://untitledcafe-bfd05-default-rtdb.europe-west1.firebasedatabase.app"
@@ -56,27 +57,36 @@ void logToCloud(String message) {
 }
 
 // =========================================================================
-// FREERTOS AUDIO TASK (Runs independently in the background)
+// FREERTOS AUDIO TASK (Optimized for Single-Core ESP32-C6)
 // =========================================================================
 void audioTask(void * pvParameters) {
-  uint16_t sample[64];
+  const int BATCH_SIZE = 1024; // Increased from 64 to give Wi-Fi room to breathe
+  uint16_t sample[BATCH_SIZE];
   size_t bytes_written;
+  bool wasPlaying = false; 
   
   while(true) {
     if (isPlaying) {
-      digitalWrite(PIN_AMP_SD, HIGH); // Turn on Amp
+      if (!wasPlaying) {
+        digitalWrite(PIN_AMP_SD, HIGH); 
+        wasPlaying = true;
+      }
       
-      // Generate a square wave and scale it by the current volume
-      for(int i = 0; i < 64; i++) {
+      // Generate a larger chunk of audio
+      for(int i = 0; i < BATCH_SIZE; i++) {
         float rawWave = (i % 20 < 10) ? 15000.0 : -15000.0; 
         sample[i] = (int16_t)(rawWave * currentVolume);
       }
+      // i2s_write automatically blocks/yields until the DMA buffer needs more data
       i2s_write(I2S_NUM_0, &sample, sizeof(sample), &bytes_written, portMAX_DELAY);
       
     } else {
-      digitalWrite(PIN_AMP_SD, LOW); // Turn off Amp to prevent static
-      i2s_zero_dma_buffer(I2S_NUM_0);
-      vTaskDelay(10 / portTICK_PERIOD_MS); // Sleep to give CPU back to WiFi
+      if (wasPlaying) {
+        digitalWrite(PIN_AMP_SD, LOW); 
+        i2s_zero_dma_buffer(I2S_NUM_0); 
+        wasPlaying = false;
+      }
+      vTaskDelay(100 / portTICK_PERIOD_MS); 
     }
   }
 }
@@ -90,20 +100,50 @@ void setup() {
   pinMode(PIN_AMP_SD, OUTPUT);
   digitalWrite(PIN_AMP_SD, LOW); 
 
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  WiFi.mode(WIFI_STA);
+  esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
+
+  // --- START MULTI-WIFI SETUP ---
+  wifiMulti.addAP("Sadan", "shamanshaman");
+  wifiMulti.addAP("Ra", "88888888");
+  wifiMulti.addAP("Dekel26", "100200300");
+  wifiMulti.addAP("Untitled Cafe - 5Ghz", "onemorecup"); // (Note: ESP32-C6 physically cannot see 5GHz, but it's fine to leave it)
+
   Serial.print("Connecting to Wi-Fi");
-  while (WiFi.status() != WL_CONNECTED) { Serial.print("."); delay(300); }
-  Serial.println("\nConnected! IP: " + WiFi.localIP().toString());
+  
+  while (wifiMulti.run() != WL_CONNECTED) {
+    Serial.print(".");
+    delay(300);
+  }
+  
+  Serial.println("");
+  Serial.println("Wi-Fi Connected!");
+  WiFi.setSleep(false);
+  Serial.printf("Free RAM before Firebase: %d bytes\n", ESP.getFreeHeap());
+
+  Serial.print("Network: ");
+  Serial.println(WiFi.SSID()); 
+  Serial.print("IP Address: ");
+  Serial.println(WiFi.localIP());
+  delay(3000);
 
   ArduinoOTA.setHostname("cafe-alarm-esp32c6");
   ArduinoOTA.begin();
 
+  // =================================================================
+  // FIREBASE CONFIGURATION
+  // =================================================================
   config.database_url = DATABASE_URL;
-  config.signer.tokens.legacy_token = DATABASE_SECRET; // This gives the ESP32 God Mode
-  
+  config.signer.tokens.legacy_token = DATABASE_SECRET; 
+  config.timeout.socketConnection = 10 * 1000;
+
+  // THE FRAGMENTATION FIX: Double the SSL RX buffer to handle massive router packets
+  // Syntax: setBSSLBufferSize(rx_size, tx_size)
+  fbdo.setBSSLBufferSize(4096, 1024);
+
   Firebase.begin(&config, &auth);
   Firebase.reconnectWiFi(true);
-  signupOK = true; // Manually flag that we are good to go
+  signupOK = true; 
 
   // Setup I2S for MAX98357A
   i2s_config_t i2s_config = {

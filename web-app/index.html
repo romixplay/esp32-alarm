@@ -192,7 +192,7 @@
                         logHistory.push(`[${time}] > ${snapshot.val()}`);
                     }
                     
-                    if (logHistory.length > 5) logHistory.shift(); 
+                    if (logHistory.length > 50) logHistory.shift(); 
                     const logBox = document.getElementById('live-log');
                     logBox.innerHTML = logHistory.join('<br>');
                     logBox.scrollTop = logBox.scrollHeight; // Keep it scrolled to the bottom
