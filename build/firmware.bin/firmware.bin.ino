@@ -128,16 +128,19 @@ void logToCloud(String message) {
   }
 }
 
+// =========================================================================
+// STANDARD SETUP FUNCTION
+// =========================================================================
 void setup() {
   Serial.begin(115200);
   
   pinMode(PIN_AMP_SD, OUTPUT);
   digitalWrite(PIN_AMP_SD, LOW); 
 
-  // 2. Clean, standard Wi-Fi initialization
+  // Clean, standard Wi-Fi initialization
   WiFi.mode(WIFI_STA);
-  WiFi.setSleep(false); // Prevent the antenna from micro-sleeping
-  esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N); // Force Wi-Fi 4 to prevent SSL packet corruption on your router!
+  WiFi.setSleep(false); 
+  esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
 
   // --- START MULTI-WIFI SETUP ---
   wifiMulti.addAP("Sadan", "shamanshaman");
@@ -162,7 +165,7 @@ void setup() {
   ArduinoOTA.begin();
 
   // =================================================================
-  // FIREBASE CONFIGURATION (Clean & Default)
+  // FIREBASE CONFIGURATION
   // =================================================================
   config.database_url = DATABASE_URL;
   config.signer.tokens.legacy_token = DATABASE_SECRET; 
@@ -171,9 +174,8 @@ void setup() {
   Firebase.begin(&config, &auth);
   Firebase.reconnectWiFi(true);
 
-  // THE FIX: Give Firebase 2 full seconds to warm up the SSL socket in the background
   Serial.println("Warming up secure cloud connection...");
-  delay(3000);
+  delay(2000);
   
   signupOK = true; 
 
@@ -205,8 +207,7 @@ void setup() {
   // Start the isolated, math-free Audio Task
   xTaskCreate(audioTask, "AudioTask", 4096, NULL, 1, NULL);
 
-  // First cloud ping!
-  logToCloud("System Booted v2.1 (Optimized Memory). IP: " + WiFi.localIP().toString());
+  logToCloud("System Booted v3.0 (Analog Synth Engine). IP: " + WiFi.localIP().toString());
 }
 
 void loop() {
