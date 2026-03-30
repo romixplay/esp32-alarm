@@ -37,7 +37,11 @@ unsigned long lastAdminPoll = 0;
 double lastProcessedTrigger = 0; 
 
 // --- DYNAMIC AUDIO ENGINE CONFIG ---
-volatile int audioMode = 0; // 0 = Silence, 1 = Siren, 2 = Periodic Beep
+volatile int audioMode = 0; 
+bool isFirstBootSync = true; // The Ghost Trigger Fix
+
+// Hardware State
+volatile bool ampEnabled = true;
 
 // Siren Settings
 volatile float mainVolume = 0.5;
@@ -45,11 +49,15 @@ volatile int sirenMinFreq = 800;
 volatile int sirenMaxFreq = 1600;
 volatile int sirenSpeed = 10;
 
+// Wobble (LFO) Settings
+volatile bool wobbleActive = false;
+volatile int wobbleSpeed = 15;
+
 // Periodic Settings
 volatile float periodicVolume = 0.5;
 volatile int periodicFreq = 1000;
 volatile int periodicSecs = 30;
-volatile float periodicLen = 0.1; // Seconds
+volatile float periodicLen = 0.1; 
 bool periodicActive = false;
 unsigned long lastPeriodicTrigger = 0;
 unsigned long periodicEndTime = 0;
@@ -67,13 +75,17 @@ void audioTask(void * pvParameters) {
   size_t bytes_written;
   bool wasPlaying = false; 
 
-  // Synth Engine State
   uint32_t phase = 0;
   float currentFreq = 800;
   int direction = 1;
+
+  // LFO State for Wobble
+  int wobblePhase = 0;
+  int wobbleDir = 1;
   
   while(true) {
-    if (audioMode > 0) {
+    // If audio is playing AND the AMP toggle is enabled
+    if (audioMode > 0 && ampEnabled) {
       if (!wasPlaying) {
         digitalWrite(PIN_AMP_SD, HIGH); 
         wasPlaying = true;
@@ -81,24 +93,26 @@ void audioTask(void * pvParameters) {
         phase = 0;
       }
       
-      // Determine Amplitude based on mode
       int16_t amplitude = (int16_t)(15000 * ((audioMode == 1) ? mainVolume : periodicVolume));
 
-      // Calculate the audio buffer
       for(int i = 0; i < BATCH_SIZE; i++) {
-        
-        // If it's a Siren, smoothly slide the frequency per sample batch
         if (audioMode == 1 && i == 0) {
           currentFreq += (sirenSpeed * direction);
           if (currentFreq >= sirenMaxFreq) { currentFreq = sirenMaxFreq; direction = -1; }
           if (currentFreq <= sirenMinFreq) { currentFreq = sirenMinFreq; direction = 1; }
         }
 
-        // Fixed-point phase math (Incredibly fast, perfectly smooth)
-        uint32_t phaseStep = (uint32_t)((currentFreq * 65536.0) / 44100.0);
+        // Wobble Effect (Fast LFO)
+        int wobbleOffset = 0;
+        if (wobbleActive && audioMode == 1 && i == 0) {
+            wobblePhase += (wobbleSpeed * wobbleDir);
+            if (wobblePhase > 150) wobbleDir = -1;
+            if (wobblePhase < -150) wobbleDir = 1;
+            wobbleOffset = wobblePhase;
+        }
+
+        uint32_t phaseStep = (uint32_t)(((currentFreq + wobbleOffset) * 65536.0) / 44100.0);
         phase += phaseStep;
-        
-        // Square wave generation based on phase rollover
         sample[i] = ((phase & 0x8000) > 0) ? amplitude : -amplitude;
       }
 
@@ -243,11 +257,22 @@ void loop() {
         StaticJsonDocument<1024> doc;
         deserializeJson(doc, fbdo.to<String>());
 
-        // Sync all our new custom sliders
+        // Hardware Controls
+        if (doc.containsKey("amp_enabled")) ampEnabled = doc["amp_enabled"];
+        if (doc.containsKey("force_reboot") && doc["force_reboot"] == true) {
+            Firebase.RTDB.setBool(&fbdo, "/alarm_state/force_reboot", false);
+            logToCloud("Hardware Reboot Triggered.");
+            delay(1000);
+            ESP.restart();
+        }
+
+        // Settings Sync
         if (doc.containsKey("volume")) mainVolume = constrain(doc["volume"].as<int>(), 0, 100) / 100.0;
         if (doc.containsKey("siren_min")) sirenMinFreq = doc["siren_min"];
         if (doc.containsKey("siren_max")) sirenMaxFreq = doc["siren_max"];
         if (doc.containsKey("siren_speed")) sirenSpeed = doc["siren_speed"];
+        if (doc.containsKey("wobble_active")) wobbleActive = doc["wobble_active"];
+        if (doc.containsKey("wobble_speed")) wobbleSpeed = doc["wobble_speed"];
         
         if (doc.containsKey("periodic_active")) periodicActive = doc["periodic_active"];
         if (doc.containsKey("periodic_sec")) periodicSecs = doc["periodic_sec"];
@@ -257,10 +282,15 @@ void loop() {
         
         if (doc.containsKey("hold_trigger")) holdTriggerActive = doc["hold_trigger"];
 
-        // Check for new trigger
+        // THE GHOST TRIGGER FIX
         if (doc.containsKey("trigger_time")) {
           double currentTrigger = doc["trigger_time"].as<double>();
-          if (currentTrigger > lastProcessedTrigger) {
+          
+          if (isFirstBootSync) {
+            lastProcessedTrigger = currentTrigger; // Silently sync the clock
+            isFirstBootSync = false;
+          } 
+          else if (currentTrigger > lastProcessedTrigger) {
             lastProcessedTrigger = currentTrigger; 
             int duration = doc["duration"] ? doc["duration"].as<int>() : 3;
             logToCloud("Timed alarm triggered for " + String(duration) + "s.");

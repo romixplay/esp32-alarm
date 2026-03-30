@@ -4,42 +4,83 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>UNTITLED // SAFE</title>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-functions-compat.js"></script>
     <style>
-        :root { --bg: #ececec; --text: #000000; --accent: #ff0000; --terminal-bg: #111; --terminal-text: #0f0; }
-        body { background-color: var(--bg); color: var(--text); font-family: 'Courier New', Courier, monospace; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 1rem; box-sizing: border-box; }
-        .container { border: 4px solid var(--text); padding: 2rem; width: 100%; max-width: 450px; box-shadow: 8px 8px 0px var(--text); background: #fff; }
-        h1 { text-transform: uppercase; border-bottom: 2px solid var(--text); padding-bottom: 0.5rem; margin-top: 0; display: flex; justify-content: space-between; align-items: center; font-size: 1.5rem; }
-        .control-group { margin-bottom: 1.5rem; border: 2px solid var(--text); padding: 1rem; }
-        label { font-weight: bold; display: block; margin-bottom: 0.5rem; }
-        .flex-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
-        input[type="range"] { width: 100%; margin-bottom: 1rem; }
-        input[type="number"] { width: 60px; font-family: inherit; font-weight: bold; border: 2px solid var(--text); text-align: center; }
-        button { background: transparent; border: 2px solid var(--text); padding: 0.75rem 1rem; font-family: inherit; font-weight: bold; font-size: 1rem; cursor: pointer; width: 100%; margin-bottom: 0.5rem; transition: all 0.1s; user-select: none; }
-        button:active:not(:disabled) { background: var(--text); color: var(--bg); transform: translate(2px, 2px); }
-        button.danger { color: var(--accent); border-color: var(--accent); }
-        button.danger:active:not(:disabled) { background: var(--accent); color: #fff; }
-        button.hold-btn { background: var(--text); color: var(--bg); }
-        button.hold-btn:active:not(:disabled) { background: var(--accent); border-color: var(--accent); }
-        button:disabled { opacity: 0.5; cursor: not-allowed; border-color: #999; color: #999; }
-        .terminal { background-color: var(--terminal-bg); color: var(--terminal-text); padding: 1rem; font-size: 0.85rem; height: 100px; overflow-y: auto; border: 2px solid var(--text); }
-        .status-connecting { background: #888; color: #fff; }
-        .status-online { background: #00cc00; color: #000; }
-        .status-offline { background: var(--accent); color: #fff; }
+        :root { --bg: #f4f4f4; --text: #000; --terminal-bg: #111; --terminal-text: #0f0; --accent: #d32f2f; }
+        body { font-family: monospace; background-color: var(--bg); color: var(--text); padding: 20px; margin: 0; display: flex; flex-direction: column; align-items: center; }
+        
+        /* Auth Overlay */
+        #auth-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 1000; color: white; }
+        #auth-screen input { padding: 10px; font-family: monospace; font-size: 1.2rem; text-align: center; border: 2px solid white; background: black; color: white; width: 200px; margin-bottom: 15px; }
+        #auth-screen button { padding: 10px 20px; font-family: monospace; font-size: 1rem; cursor: pointer; background: white; color: black; border: none; font-weight: bold; }
+        
+        /* Main Layout */
+        .container { max-width: 500px; width: 100%; display: none; }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid var(--text); padding-bottom: 10px; margin-bottom: 20px; }
+        .header h1 { margin: 0; font-size: 1.5rem; letter-spacing: 2px; }
+        
+        /* Status Badges */
+        .status-badge { padding: 5px 10px; font-weight: bold; border: 2px solid #000; font-size: 0.9rem; }
+        .bg-grey { background-color: #ccc; color: #000; }
+        .bg-green { background-color: #0f0; color: #000; }
+        .bg-red { background-color: #f00; color: #fff; }
+
+        .card { border: 2px solid var(--text); padding: 15px; margin-bottom: 20px; background: #fff; box-shadow: 4px 4px 0px var(--text); }
+        .card label { font-weight: bold; display: block; margin-bottom: 10px; text-transform: uppercase; }
+        
+        input[type="range"] { width: 100%; cursor: pointer; margin-bottom: 10px; }
+        
+        .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+        .btn-outline { background: transparent; border: 2px solid var(--accent); color: var(--accent); padding: 12px; font-family: monospace; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .btn-outline:active { background: var(--accent); color: white; }
+        .btn-solid { background: #000; color: #fff; border: 2px solid #000; padding: 15px; font-family: monospace; font-weight: bold; width: 100%; cursor: pointer; }
+        .btn-solid:active { background: #333; }
+
+        /* Foldable Details */
+        details { border: 2px solid var(--text); padding: 10px; background: #fff; margin-bottom: 20px; box-shadow: 4px 4px 0px var(--text); }
+        summary { font-weight: bold; cursor: pointer; outline: none; text-transform: uppercase; list-style: none; }
+        summary::-webkit-details-marker { display: none; }
+        summary::before { content: "► "; }
+        details[open] summary::before { content: "▼ "; }
+        
+        .terminal { background-color: var(--terminal-bg); color: var(--terminal-text); padding: 1rem; font-size: 0.85rem; height: 150px; overflow-y: auto; border: 2px solid var(--text); margin-top: 15px; margin-bottom: 15px; }
+        .version-text { font-size: 0.8rem; color: #666; text-align: right; margin-top: 5px; }
     </style>
 </head>
 <body>
 
-    <div class="container">
-    <div class="header">
-        <h2>UNTITLED~SAFE</h2>
-        <span class="status" id="status-badge">OFFLINE</span>
+    <div id="auth-screen">
+        <h2>ENTER SYSTEM PASSCODE</h2>
+        <input type="password" id="passcode-input" placeholder="****">
+        <button onclick="login()">AUTHENTICATE</button>
+        <p id="auth-error" style="color: red; display: none; margin-top:10px;">INVALID PASSCODE</p>
     </div>
 
-    <div class="card">
-        <label>MAIN VOLUME: <span id="vol-val">50%</span></label>
-        <input type="range" id="volume" min="0" max="100" value="50" onchange="saveSettings()">
-        
-        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed var(--text);">
+    <div class="container" id="main-app">
+        <div class="header">
+            <h1>UNTITLED~CAFE // SAFE</h1>
+            <span id="status-indicator" class="status-badge bg-grey">CONNECTING</span>
+        </div>
+
+        <div class="card">
+            <label>MANUAL ALARM TRIGGER</label>
+            <div class="btn-grid">
+                <button class="btn-outline" onclick="triggerAlarm(3)">SOUND (3s)</button>
+                <button class="btn-outline" onclick="triggerAlarm(5)">SOUND (5s)</button>
+                <button class="btn-outline" onclick="triggerAlarm(10)">SOUND (10s)</button>
+                <button class="btn-outline" onclick="triggerAlarm(30)">SOUND (30s)</button>
+            </div>
+            <button class="btn-solid" onmousedown="holdAlarm(true)" onmouseup="holdAlarm(false)" onmouseleave="holdAlarm(false)" ontouchstart="holdAlarm(true)" ontouchend="holdAlarm(false)">HOLD TO PLAY</button>
+        </div>
+
+        <div class="card">
+            <label>MAIN VOLUME: <span id="vol-val">50%</span></label>
+            <input type="range" id="volume" min="0" max="100" value="50" onchange="saveSettings()">
+        </div>
+
+        <div class="card">
             <label>SIREN MIN FREQUENCY: <span id="smin-val">800Hz</span></label>
             <input type="range" id="siren-min" min="300" max="2500" step="50" value="800" onchange="saveSettings()">
             
@@ -48,89 +89,172 @@
             
             <label style="margin-top: 10px;">SIREN SWEEP SPEED: <span id="sspeed-val">10</span></label>
             <input type="range" id="siren-speed" min="1" max="50" value="10" onchange="saveSettings()">
-        </div>
-    </div>
 
-    <div class="card">
-        <label>MANUAL ALARM TRIGGER</label>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
-            <button class="btn-outline" onclick="triggerAlarm(3)">SOUND (3s)</button>
-            <button class="btn-outline" onclick="triggerAlarm(5)">SOUND (5s)</button>
-            <button class="btn-outline" onclick="triggerAlarm(10)">SOUND (10s)</button>
-            <button class="btn-outline" onclick="triggerAlarm(30)">SOUND (30s)</button>
+            <div style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed var(--text);">
+                <label style="display: flex; align-items: center; gap: 10px;">
+                    <input type="checkbox" id="wobble-toggle" onchange="saveSettings()"> 
+                    ENABLE WOBBLE EFFECT (LFO)
+                </label>
+                <label style="margin-top: 10px;">WOBBLE SPEED: <span id="wspeed-val">15</span></label>
+                <input type="range" id="wobble-speed" min="1" max="50" value="15" onchange="saveSettings()">
+            </div>
         </div>
-        <button class="btn-solid" id="btn-hold" onmousedown="holdAlarm(true)" onmouseup="holdAlarm(false)" onmouseleave="holdAlarm(false)" ontouchstart="holdAlarm(true)" ontouchend="holdAlarm(false)">HOLD TO PLAY</button>
-    </div>
 
-    <div class="card">
-        <label style="display: flex; align-items: center; gap: 10px;">
-            <input type="checkbox" id="periodic-toggle" onchange="saveSettings()"> 
-            <span id="periodic-title">PERIODIC BEEP EVERY 30 SEC</span>
-        </label>
-        
-        <div style="margin-top: 15px; padding-left: 10px; border-left: 2px solid var(--text);">
-            <label>Interval (Seconds):</label>
-            <input type="number" id="periodic-sec" value="30" style="width: 100px; padding: 5px;" onchange="updatePeriodicTitle(); saveSettings()">
+        <div class="card">
+            <label style="display: flex; align-items: center; gap: 10px;">
+                <input type="checkbox" id="periodic-toggle" onchange="saveSettings()"> 
+                <span id="periodic-title">PERIODIC BEEP EVERY 30 SEC</span>
+            </label>
             
-            <label style="margin-top: 10px;">Beep Length (Seconds):</label>
-            <input type="number" id="periodic-len" value="0.1" step="0.1" style="width: 100px; padding: 5px;" onchange="saveSettings()">
+            <div style="margin-top: 15px; padding-left: 10px; border-left: 2px solid var(--text);">
+                <label>Interval (Seconds):</label>
+                <input type="number" id="periodic-sec" value="30" style="width: 100px; padding: 5px;" onchange="updatePeriodicTitle(); saveSettings()">
+                
+                <label style="margin-top: 10px;">Beep Length (Seconds):</label>
+                <input type="number" id="periodic-len" value="0.1" step="0.1" style="width: 100px; padding: 5px;" onchange="saveSettings()">
 
-            <label style="margin-top: 10px;">BEEP FREQUENCY: <span id="pfreq-val">1000Hz</span></label>
-            <input type="range" id="periodic-freq" min="300" max="2500" step="50" value="1000" onchange="saveSettings()">
+                <label style="margin-top: 10px;">BEEP FREQUENCY: <span id="pfreq-val">1000Hz</span></label>
+                <input type="range" id="periodic-freq" min="300" max="2500" step="50" value="1000" onchange="saveSettings()">
 
-            <label style="margin-top: 10px;">BEEP VOLUME: <span id="pvol-val">50%</span></label>
-            <input type="range" id="periodic-vol" min="0" max="100" value="50" onchange="saveSettings()">
+                <label style="margin-top: 10px;">BEEP VOLUME: <span id="pvol-val">50%</span></label>
+                <input type="range" id="periodic-vol" min="0" max="100" value="50" onchange="saveSettings()">
+            </div>
         </div>
+
+        <details>
+            <summary>SYSTEM SETTINGS & LOGS</summary>
+            
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px; margin-bottom: 15px;">
+                <label style="display: flex; align-items: center; gap: 10px; margin: 0;">
+                    <input type="checkbox" id="amp-toggle" checked onchange="saveSettings()"> 
+                    AMP HARDWARE POWER
+                </label>
+                <button class="btn-outline" style="padding: 5px 10px; font-size: 0.8rem; border-color: #000; color: #000;" onclick="rebootESP()">REBOOT ESP32</button>
+            </div>
+
+            <div class="terminal" id="live-log">Loading system logs...</div>
+            
+            <button class="btn-outline" style="width: 100%;" onclick="updateFirmware()">PULL LATEST GITHUB BUILD (OTA)</button>
+            
+            <div class="version-text">
+                FIRMWARE VERSION: <span id="fw-version">Mar 30, 2026 - 21:53:50</span>
+            </div>
+        </details>
+
+        <button class="btn-outline" style="width: 100%; border-color: #000; color: #000; margin-bottom: 50px;" onclick="location.reload()">LOG OUT / CLEAR CACHE</button>
     </div>
 
-    </div>
+    <script>
+        // --- FIREBASE CONFIG ---
+        const firebaseConfig = {
+            databaseURL: "https://untitledcafe-bfd05-default-rtdb.europe-west1.firebasedatabase.app"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        const functions = firebase.functions('europe-west1'); // Adjust region if needed
 
-<script>
-    // Link sliders to their text labels for visual feedback
-    const ids = ['volume', 'siren-min', 'siren-max', 'siren-speed', 'periodic-freq', 'periodic-vol'];
-    ids.forEach(id => {
-        document.getElementById(id).addEventListener('input', function() {
-            let val = this.value;
-            if(id.includes('vol')) val += '%';
-            else if(id.includes('freq') || id.includes('min') || id.includes('max')) val += 'Hz';
-            document.getElementById(id.replace('volume', 'vol').split('-')[0].substring(0,5) + id.replace('volume', 'vol').split('-').pop() + '-val').innerText = val; // Quick hack to map IDs to labels
-            updateLabels();
+        let sessionPasscode = "";
+
+        function login() {
+            sessionPasscode = document.getElementById('passcode-input').value;
+            document.getElementById('auth-screen').style.display = 'none';
+            document.getElementById('main-app').style.display = 'block';
+            setupSystemMonitors();
+        }
+
+        // --- LABEL SYNCING ---
+        const ids = ['volume', 'siren-min', 'siren-max', 'siren-speed', 'wobble-speed', 'periodic-freq', 'periodic-vol'];
+        ids.forEach(id => {
+            document.getElementById(id).addEventListener('input', function() {
+                let val = this.value;
+                if(id.includes('vol')) val += '%';
+                else if(id.includes('freq') || id.includes('min') || id.includes('max')) val += 'Hz';
+                document.getElementById(id.replace('volume', 'vol').split('-')[0].substring(0,5) + id.replace('volume', 'vol').split('-').pop() + '-val').innerText = val; 
+            });
         });
-    });
 
-    function updateLabels() {
-        document.getElementById('vol-val').innerText = document.getElementById('volume').value + '%';
-        document.getElementById('smin-val').innerText = document.getElementById('siren-min').value + 'Hz';
-        document.getElementById('smax-val').innerText = document.getElementById('siren-max').value + 'Hz';
-        document.getElementById('sspeed-val').innerText = document.getElementById('siren-speed').value;
-        document.getElementById('pfreq-val').innerText = document.getElementById('periodic-freq').value + 'Hz';
-        document.getElementById('pvol-val').innerText = document.getElementById('periodic-vol').value + '%';
-    }
+        function updatePeriodicTitle() {
+            document.getElementById('periodic-title').innerText = `PERIODIC BEEP EVERY ${document.getElementById('periodic-sec').value} SEC`;
+        }
 
-    function updatePeriodicTitle() {
-        document.getElementById('periodic-title').innerText = `PERIODIC BEEP EVERY ${document.getElementById('periodic-sec').value} SEC`;
-    }
+        // --- CLOUD COMMANDS ---
+        async function sendCommand(action, payload = {}) {
+            try {
+                const secureCommand = functions.httpsCallable('secureCommand');
+                await secureCommand({ pin: sessionPasscode, action, payload });
+            } catch (error) {
+                console.error("Command failed:", error);
+                if (error.message.includes("ACCESS DENIED")) {
+                    alert("ACCESS DENIED: Invalid Passcode.");
+                    location.reload();
+                }
+            }
+        }
 
-    async function saveSettings() {
-        updatePeriodicTitle();
-        await sendCommand("update_settings", {
-            volume: parseInt(document.getElementById('volume').value),
-            siren_min: parseInt(document.getElementById('siren-min').value),
-            siren_max: parseInt(document.getElementById('siren-max').value),
-            siren_speed: parseInt(document.getElementById('siren-speed').value),
-            periodic_active: document.getElementById('periodic-toggle').checked,
-            periodic_sec: parseInt(document.getElementById('periodic-sec').value),
-            periodic_vol: parseInt(document.getElementById('periodic-vol').value),
-            periodic_freq: parseInt(document.getElementById('periodic-freq').value),
-            periodic_len: parseFloat(document.getElementById('periodic-len').value)
-        });
-    }
+        async function saveSettings() {
+            updatePeriodicTitle();
+            await sendCommand("update_settings", {
+                volume: parseInt(document.getElementById('volume').value),
+                siren_min: parseInt(document.getElementById('siren-min').value),
+                siren_max: parseInt(document.getElementById('siren-max').value),
+                siren_speed: parseInt(document.getElementById('siren-speed').value),
+                wobble_active: document.getElementById('wobble-toggle').checked,
+                wobble_speed: parseInt(document.getElementById('wobble-speed').value),
+                periodic_active: document.getElementById('periodic-toggle').checked,
+                periodic_sec: parseInt(document.getElementById('periodic-sec').value),
+                periodic_vol: parseInt(document.getElementById('periodic-vol').value),
+                periodic_freq: parseInt(document.getElementById('periodic-freq').value),
+                periodic_len: parseFloat(document.getElementById('periodic-len').value),
+                amp_enabled: document.getElementById('amp-toggle').checked
+            });
+        }
 
-    // Update trigger functions to use new signatures
-    async function triggerAlarm(seconds) { await sendCommand("trigger_alarm", { duration: seconds }); }
-    async function holdAlarm(state) { await sendCommand("hold_alarm", { active: state }); }
-    
-    // ... Keep your existing sendCommand and setupLiveLogs functions ...
-</script>
+        async function triggerAlarm(seconds) { await sendCommand("trigger_alarm", { duration: seconds }); }
+        async function holdAlarm(state) { await sendCommand("hold_alarm", { active: state }); }
+        async function rebootESP() { if(confirm("Are you sure you want to hard reset the ESP32?")) { await sendCommand("reboot_esp"); } }
+        async function updateFirmware() {
+            const url = prompt("Enter raw GitHub firmware URL (.bin):", "https://romixplay.github.io/esp32-alarm/firmware.bin");
+            if(url) await sendCommand("sync_firmware", { url });
+        }
+
+        // --- SYSTEM MONITORS (Logs & Online Status) ---
+        function setupSystemMonitors() {
+            // Live Logs
+            let logHistory = [];
+            let isFirstLoad = true; 
+            db.ref('system/latest_log').on('value', (snapshot) => {
+                if (snapshot.val()) {
+                    if (isFirstLoad) {
+                        isFirstLoad = false;
+                        logHistory.push(`<span style="color:#888;">> Last known state: ${snapshot.val()}</span>`);
+                    } else {
+                        const time = new Date().toLocaleTimeString('en-US', { hour12: false });
+                        logHistory.push(`[${time}] > ${snapshot.val()}`);
+                    }
+                    if (logHistory.length > 50) logHistory.shift(); 
+                    const logBox = document.getElementById('live-log');
+                    logBox.innerHTML = logHistory.join('<br>');
+                    logBox.scrollTop = logBox.scrollHeight; 
+                }
+            });
+
+            // Online Status Heartbeat
+            const statusBadge = document.getElementById('status-indicator');
+            db.ref('system/last_ping').on('value', (snapshot) => {
+                const lastPing = snapshot.val();
+                if (lastPing) {
+                    const now = Date.now();
+                    // If ESP32 hasn't pinged in 20 seconds, it's offline
+                    if (now - lastPing > 20000) {
+                        statusBadge.className = "status-badge bg-red";
+                        statusBadge.innerText = "OFFLINE";
+                    } else {
+                        statusBadge.className = "status-badge bg-green";
+                        statusBadge.innerText = "ONLINE";
+                    }
+                }
+            });
+        }
+    </script>
 </body>
 </html>

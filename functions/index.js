@@ -10,10 +10,8 @@ exports.secureCommand = functions.https.onCall(async (request_or_data, context) 
 
     const db = admin.database();
     const passcodeSnapshot = await db.ref("system/passcode").once("value");
-    const SYSTEM_PIN = String(passcodeSnapshot.val()).trim();
-
-    if (String(pin).trim() !== SYSTEM_PIN) {
-      throw new Error(`ACCESS DENIED.`);
+    if (String(pin).trim() !== String(passcodeSnapshot.val()).trim()) {
+      throw new Error(`ACCESS DENIED. Invalid Passcode.`);
     }
     
     switch (action) {
@@ -29,12 +27,18 @@ exports.secureCommand = functions.https.onCall(async (request_or_data, context) 
             siren_min: payload.siren_min,
             siren_max: payload.siren_max,
             siren_speed: payload.siren_speed,
+            wobble_active: payload.wobble_active,
+            wobble_speed: payload.wobble_speed,
             periodic_active: payload.periodic_active,
             periodic_sec: payload.periodic_sec,
             periodic_vol: payload.periodic_vol,
             periodic_freq: payload.periodic_freq,
-            periodic_len: payload.periodic_len
+            periodic_len: payload.periodic_len,
+            amp_enabled: payload.amp_enabled
         });
+        break;
+      case "reboot_esp":
+        await db.ref("alarm_state").update({ force_reboot: true });
         break;
       case "sync_firmware":
         await db.ref("system").update({ ota_url: payload.url });
@@ -42,7 +46,6 @@ exports.secureCommand = functions.https.onCall(async (request_or_data, context) 
       default:
         throw new Error("Unknown command.");
     }
-
     return { success: true };
   } catch (error) {
     throw new functions.https.HttpsError("unknown", error.message);

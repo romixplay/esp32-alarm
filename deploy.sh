@@ -1,11 +1,15 @@
 #!/bin/bash
 
-# 1. Add and push the new firmware to GitHub
-echo ">>> Pushing new firmware to GitHub..."
+# 1. Grab the current date and time
+TIMESTAMP=$(date +"%b %d, %Y - %H:%M:%S")
+echo "Deploying Version: $TIMESTAMP"
+
+# 2. Automatically find the version span in index.html and inject the new timestamp
+sed -i '' "s|<span id=\"fw-version\">.*</span>|<span id=\"fw-version\">$TIMESTAMP</span>|g" web-app/index.html
+
+# 3. Standard Git Push
 git add .
-git commit -m "Auto-deploy new firmware build"
+git commit -m "Auto-Deploy: $TIMESTAMP"
 git push origin main
 
-# Wait a couple of seconds to ensure GitHub's raw content servers register the change
-sleep 3 
-
+echo "Deployment Sent to GitHub!"
