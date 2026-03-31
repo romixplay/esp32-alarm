@@ -6,7 +6,6 @@
     <title>UNTITLED // SAFE</title>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-functions-compat.js"></script>
     <style>
         :root { --bg: #f4f4f4; --text: #000; --terminal-bg: #111; --terminal-text: #0f0; --accent: #d32f2f; }
         body { font-family: monospace; background-color: var(--bg); color: var(--text); padding: 20px; margin: 0; display: flex; flex-direction: column; align-items: center; }
@@ -43,6 +42,10 @@
         input:checked + .slider-toggle { background-color: #0f0; }
         input:checked + .slider-toggle:before { transform: translateX(20px); }
 
+        /* Styling for folded elements */
+        details { padding: 10px; background: #fafafa; border: 1px dashed var(--text); margin-top: 15px; }
+        summary { font-weight: bold; cursor: pointer; outline: none; text-transform: uppercase; }
+        
         .terminal { background-color: var(--terminal-bg); color: var(--terminal-text); padding: 1rem; font-size: 0.85rem; height: 150px; overflow-y: auto; border: 2px solid var(--text); margin-bottom: 15px; }
         .version-text { font-size: 0.9rem; font-weight: bold; color: #444; text-align: center; margin-top: 15px; }
     </style>
@@ -79,26 +82,29 @@
         <div class="card">
             <label>MAIN VOLUME: <span id="vol-val">50%</span></label>
             <input type="range" id="volume" min="0" max="100" value="50" onchange="saveSettings()">
-        </div>
 
-        <div class="card">
-            <label>SIREN MIN FREQUENCY: <span id="smin-val">800Hz</span></label>
-            <input type="range" id="siren-min" min="300" max="2500" step="50" value="800" onchange="saveSettings()">
-            
-            <label style="margin-top: 10px;">SIREN MAX FREQUENCY: <span id="smax-val">1600Hz</span></label>
-            <input type="range" id="siren-max" min="300" max="2500" step="50" value="1600" onchange="saveSettings()">
-            
-            <label style="margin-top: 10px;">SIREN SWEEP SPEED: <span id="sspeed-val">10</span></label>
-            <input type="range" id="siren-speed" min="1" max="50" value="10" onchange="saveSettings()">
+            <details>
+                <summary>ADVANCED SIREN SETTINGS</summary>
+                <div style="margin-top: 15px;">
+                    <label>SIREN MIN FREQUENCY: <span id="smin-val">800Hz</span></label>
+                    <input type="range" id="siren-min" min="300" max="2500" step="50" value="800" onchange="saveSettings()">
+                    
+                    <label style="margin-top: 10px;">SIREN MAX FREQUENCY: <span id="smax-val">1600Hz</span></label>
+                    <input type="range" id="siren-max" min="300" max="2500" step="50" value="1600" onchange="saveSettings()">
+                    
+                    <label style="margin-top: 10px;">SIREN SWEEP SPEED: <span id="sspeed-val">10</span></label>
+                    <input type="range" id="siren-speed" min="1" max="50" value="10" onchange="saveSettings()">
 
-            <div style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed var(--text);">
-                <div class="switch-container">
-                    <label class="switch"><input type="checkbox" id="wobble-toggle" onchange="saveSettings()"><span class="slider-toggle"></span></label>
-                    <span>ENABLE WOBBLE EFFECT (LFO)</span>
+                    <div style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed var(--text);">
+                        <div class="switch-container">
+                            <label class="switch"><input type="checkbox" id="wobble-toggle" onchange="saveSettings()"><span class="slider-toggle"></span></label>
+                            <span>ENABLE WOBBLE EFFECT (LFO)</span>
+                        </div>
+                        <label>WOBBLE SPEED: <span id="wspeed-val">15</span></label>
+                        <input type="range" id="wobble-speed" min="1" max="50" value="15" onchange="saveSettings()">
+                    </div>
                 </div>
-                <label>WOBBLE SPEED: <span id="wspeed-val">15</span></label>
-                <input type="range" id="wobble-speed" min="1" max="50" value="15" onchange="saveSettings()">
-            </div>
+            </details>
         </div>
 
         <div class="card">
@@ -139,7 +145,7 @@
             
             <div class="version-text">
                 SYSTEM UPTIME: <span id="sys-uptime">0h 0m</span><br><br>
-                <span id="fw-version">FW: 260331005739</span>
+                <span id="fw-version">FW: 260331124403</span>
             </div>
         </div>
     </div>
@@ -148,7 +154,6 @@
         const firebaseConfig = { projectId: "untitledcafe-bfd05", databaseURL: "https://untitledcafe-bfd05-default-rtdb.europe-west1.firebasedatabase.app" };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
-        const functions = firebase.app().functions(); 
 
         let sessionPasscode = "";
 
@@ -160,6 +165,7 @@
             }
         };
 
+        // NEW LOGIN: Tests the Security Rules instantly over WebSocket
         async function login() {
             const btn = document.getElementById('auth-btn');
             const err = document.getElementById('auth-error');
@@ -168,14 +174,14 @@
             err.style.display = 'none';
 
             try {
-                const secureCommand = functions.httpsCallable('secureCommand');
-                await secureCommand({ pin: sessionPasscode, action: "verify_passcode" });
+                // Perform a tiny dummy write. If it passes the Rules, the PIN is correct!
+                await db.ref("alarm_state").update({ auth_pin: sessionPasscode, last_ui_login: Date.now() });
                 
                 localStorage.setItem("system_pin", sessionPasscode); 
                 document.getElementById('auth-screen').style.display = 'none';
                 document.getElementById('main-app').style.display = 'block';
                 
-                syncUI(); // Fetch reality before enabling monitors
+                syncUI(); 
                 setupSystemMonitors();
             } catch (error) {
                 btn.innerText = "AUTHENTICATE";
@@ -185,7 +191,31 @@
             }
         }
 
-        // --- THE UI SYNC FUNCTION (Fixes Sliders/LFO bugs) ---
+        // --- DIRECT DATABASE COMMANDS (ZERO LATENCY) ---
+        async function sendCommand(action, payload = {}) {
+            try {
+                payload.auth_pin = sessionPasscode; // Always attach the key for the Rules Gatekeeper
+
+                if (action === "trigger_alarm") {
+                    await db.ref("alarm_state").update({ trigger_time: Date.now(), duration: payload.duration, hold_trigger: false, auth_pin: sessionPasscode });
+                } else if (action === "hold_alarm") {
+                    await db.ref("alarm_state").update({ hold_trigger: payload.active, auth_pin: sessionPasscode });
+                } else if (action === "stop_alarm") {
+                    await db.ref("alarm_state").update({ stop_trigger: Date.now(), hold_trigger: false, auth_pin: sessionPasscode });
+                } else if (action === "update_settings") {
+                    await db.ref("alarm_state").update(payload);
+                } else if (action === "reboot_esp") {
+                    await db.ref("alarm_state").update({ force_reboot: true, auth_pin: sessionPasscode });
+                } else if (action === "sync_firmware") {
+                    await db.ref("system").update({ ota_url: payload.url, auth_pin: sessionPasscode });
+                }
+            } catch (error) {
+                console.error("Command failed:", error);
+                alert("ACCESS DENIED or Network Error.");
+                logout();
+            }
+        }
+
         function syncUI() {
             db.ref('alarm_state').once('value').then((snap) => {
                 const data = snap.val();
@@ -232,16 +262,6 @@
             document.getElementById('periodic-title').innerText = `PERIODIC BEEP EVERY ${sec}s | ${len}s | ${freq}Hz | ${vol}%`;
         }
 
-        async function sendCommand(action, payload = {}) {
-            try {
-                const secureCommand = functions.httpsCallable('secureCommand');
-                await secureCommand({ pin: sessionPasscode, action, payload });
-            } catch (error) {
-                console.error("Command failed:", error);
-                if (error.message.includes("ACCESS DENIED")) logout();
-            }
-        }
-
         async function saveSettings() {
             updatePeriodicTitle();
             await sendCommand("update_settings", {
@@ -267,7 +287,6 @@
             let logHistory = [];
             db.ref('system/latest_log').on('value', (snapshot) => {
                 if (snapshot.val()) {
-                    // Removed the double-timestamping formatting here!
                     logHistory.push(`> ${snapshot.val()}`);
                     if (logHistory.length > 50) logHistory.shift(); 
                     const logBox = document.getElementById('live-log');
@@ -290,7 +309,6 @@
                 }
             });
 
-            // Listen for Uptime Updates
             db.ref('system/uptime').on('value', (snapshot) => {
                 const upSecs = snapshot.val();
                 if (upSecs) {
