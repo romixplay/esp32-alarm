@@ -1,4 +1,5 @@
 #include <WiFi.h>
+#include <LittleFS.h>
 #include <WiFiMulti.h>
 #include <Firebase_ESP_Client.h>
 #include <ArduinoOTA.h>
@@ -8,9 +9,7 @@
 #include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
 #include <esp_wifi.h>
-#include "AudioFileSourceHTTPStream.h"
-#include "AudioGeneratorMP3.h"
-#include "AudioOutputI2S.h"
+
 
 #include "addons/TokenHelper.h"
 #include "addons/RTDBHelper.h"
@@ -45,12 +44,6 @@ double lastStopTrigger = 0;
 volatile int audioMode = 0; 
 bool isFirstBootSync = true; // The Ghost Trigger Fix
 
-// MP3 Streaming Objects
-AudioGeneratorMP3 *mp3;
-AudioFileSourceHTTPStream *file;
-AudioOutputI2S *out;
-String currentStreamUrl = "";
-
 // Hardware State
 volatile bool ampEnabled = true;
 
@@ -78,7 +71,7 @@ unsigned long alarmEndTime = 0;
 bool holdTriggerActive = false;
 
 // =========================================================================
-// FREERTOS AUDIO TASK (Real-Time Phase Accumulator Synthesizer)
+// FREERTOS AUDIO TASK (Pure Analog Synth Engine - STABLE)
 // =========================================================================
 void audioTask(void * pvParameters) {
   const int BATCH_SIZE = 512;
@@ -89,13 +82,10 @@ void audioTask(void * pvParameters) {
   uint32_t phase = 0;
   float currentFreq = 800;
   int direction = 1;
-
-  // LFO State for Wobble
   int wobblePhase = 0;
   int wobbleDir = 1;
   
   while(true) {
-    // If audio is playing AND the AMP toggle is enabled
     if (audioMode > 0 && ampEnabled) {
       if (!wasPlaying) {
         digitalWrite(PIN_AMP_SD, HIGH); 
@@ -113,7 +103,6 @@ void audioTask(void * pvParameters) {
           if (currentFreq <= sirenMinFreq) { currentFreq = sirenMinFreq; direction = 1; }
         }
 
-        // Wobble Effect (Fast LFO)
         int wobbleOffset = 0;
         if (wobbleActive && audioMode == 1 && i == 0) {
             wobblePhase += (wobbleSpeed * wobbleDir);
@@ -283,22 +272,10 @@ void loop() {
       }
       if (millis() < periodicEndTime) beepActive = true;
 
-      // ==========================================
-      // THE STRICT PRIORITY ROUTER (UPDATED)
-      // ==========================================
-      if (mainAlarmActive) {
-        audioMode = 1;       // 1st Priority: Siren overrides EVERYTHING
-      } 
-      else if (audioMode == 3) {
-        // 2nd Priority: MP3 STREAMING. 
-        // Do nothing! Let it play. The audioTask will automatically set this back to 0 when the song ends.
-      } 
-      else if (beepActive) {
-        audioMode = 2;       // 3rd Priority: Beep plays only if Siren and MP3 are quiet
-      } 
-      else {
-        audioMode = 0;       // Default: SILENCE
-      }
+      // The Strict Priority Router
+      if (mainAlarmActive) audioMode = 1;      // Siren wins
+      else if (beepActive) audioMode = 2; // Beep plays if Siren is quiet
+      else audioMode = 0;                 // SILENCE
     }
 
     // ---------------------------------------------------------
@@ -377,21 +354,6 @@ void loop() {
           }
         }
 
-        // MP3 Stream Trigger
-        if (doc.containsKey("stream_trigger") && doc.containsKey("play_stream")) {
-          double currentStream = doc["stream_trigger"].as<double>();
-          if (currentStream > lastProcessedTrigger) {
-            lastProcessedTrigger = currentStream; 
-            currentStreamUrl = doc["play_stream"].as<String>();
-            
-            // Kill existing alarms, switch to MP3 mode
-            alarmEndTime = 0; 
-            holdTriggerActive = false; 
-            audioMode = 3; 
-            
-            logToCloud("Streaming MP3 from cloud...");
-          }
-        }
       }
     }
 

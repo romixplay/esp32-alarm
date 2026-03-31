@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>UNTITLED // SAFE</title>
+    <link rel="icon" href="data:,">
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-storage-compat.js"></script>
@@ -163,7 +164,7 @@
             
             <div class="version-text">
                 SYSTEM UPTIME: <span id="sys-uptime">0h 0m</span><br><br>
-                <span id="fw-version">FW: 260331145007</span>
+                <span id="fw-version">FW: 260331152944</span>
             </div>
         </div>
     </div>
@@ -300,6 +301,8 @@
         }
 
         async function saveSettings() {
+            if (!validPinPayload) return;
+            
             updatePeriodicTitle();
             await sendCommand("update_settings", {
                 volume: parseInt(document.getElementById('volume').value), siren_min: parseInt(document.getElementById('siren-min').value),
