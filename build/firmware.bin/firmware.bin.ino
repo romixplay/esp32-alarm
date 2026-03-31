@@ -40,6 +40,8 @@ unsigned long lastAdminPoll = 0;
 double lastProcessedTrigger = 0;
 double lastStopTrigger = 0;
 double lastStreamTrigger = 0;
+double lastSlotTrigger = 0;
+String localHashes[6] = {"", "", "", "", "", ""}; // Stores the version of files we have
 
 // --- DYNAMIC AUDIO ENGINE CONFIG ---
 volatile int audioMode = 0; // 0=Silence, 1=Siren, 2=Beep, 3=WAV
@@ -407,9 +409,9 @@ void loop() {
     }
 
     // ---------------------------------------------------------
-    // 2. ALARM POLLING (Every 2.5 Seconds)
+    // 2. ALARM POLLING
     // ---------------------------------------------------------
-    if (millis() - lastAlarmPoll > 500) {
+    if (millis() - lastAlarmPoll > 250) {
       lastAlarmPoll = millis();
 
       if (Firebase.RTDB.getJSON(&fbdo, "/alarm_state")) {
@@ -492,24 +494,29 @@ void loop() {
         }
 
         // ==========================================
-        // WAV PLAYBACK TRIGGER
+        // SMART SLOT SYSTEM
         // ==========================================
-        if (doc.containsKey("stream_trigger") && doc.containsKey("play_stream")) {
-          double currentStream = doc["stream_trigger"].as<double>();
-          if (currentStream > lastStreamTrigger) {
-            lastStreamTrigger = currentStream; 
-            String url = doc["play_stream"].as<String>();
+        if (doc.containsKey("slot_trigger") && doc.containsKey("play_slot")) {
+          double currentTrigger = doc["slot_trigger"].as<double>();
+          if (currentTrigger > lastSlotTrigger) {
+            lastSlotTrigger = currentTrigger;
+            int slot = doc["play_slot"].as<int>();
+            String slotPath = "/slot" + String(slot) + ".wav";
             
-            // 1. Force everything to stop immediately
-            audioMode = 0;
-            alarmEndTime = 0; 
-            holdTriggerActive = false; 
-            delay(200); // Give the audioTask a moment to cleanly release the speaker
-            
-            // 2. Lock the CPU and download the file to the hard drive
-            if (downloadAudioToFS(url)) {
-              audioMode = 3; // 3. Start local playback!
+            // Check if we need to download a new version
+            String cloudHash = doc["slots"]["slot" + String(slot) + "_hash"].as<String>();
+            String cloudUrl = doc["slots"]["slot" + String(slot) + "_url"].as<String>();
+
+            if (cloudHash != localHashes[slot] || !LittleFS.exists(slotPath)) {
+               logToCloud("Slot " + String(slot) + " is new/outdated. Downloading...");
+               if (downloadAudioToFS(cloudUrl, slotPath)) {
+                 localHashes[slot] = cloudHash;
+               }
             }
+
+            // INSTANT PLAYBACK
+            audioMode = 3; 
+            currentWavPath = slotPath; // Tell the audioTask which file to open
           }
         }
 

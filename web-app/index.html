@@ -164,7 +164,7 @@
             
             <div class="version-text">
                 SYSTEM UPTIME: <span id="sys-uptime">0h 0m</span><br><br>
-                <span id="fw-version">FW: 260331180234</span>
+                <span id="fw-version">FW: 260331182150</span>
             </div>
         </div>
     </div>
@@ -419,14 +419,36 @@
             return new Blob([wavBuffer], { type: 'audio/wav' });
         }
 
-        async function playCustomAudio(fileName) {
-            try {
-                // Tell it to look for the .wav extension we just uploaded!
-                const url = await storage.ref('audio/' + fileName.replace('.mp3', '.wav')).getDownloadURL();
-                await db.ref("alarm_state").update({ play_stream: url, stream_trigger: Date.now(), auth_pin: validPinPayload });
-            } catch (e) {
-                alert("Audio file not found in cloud storage.");
-            }
+        async function playAudioSlot(slotNumber) {
+            // Tell the ESP32 to play a specific slot from its OWN hard drive
+            await db.ref("alarm_state").update({ 
+                play_slot: slotNumber, 
+                slot_trigger: Date.now(), 
+                auth_pin: validPinPayload 
+            });
+        }
+
+        async function uploadToSlot(event, slotNumber) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const status = document.getElementById('upload-status');
+            status.innerText = `Updating Slot ${slotNumber}...`;
+            
+            // ... (Your existing conversion logic here to get wavBlob) ...
+            
+            const storageRef = storage.ref(`audio/slot${slotNumber}.wav`);
+            await storageRef.put(wavBlob);
+            const downloadURL = await storageRef.getDownloadURL();
+
+            // Tell the ESP32: "Your local slot X is now out of date. Download this new URL."
+            await db.ref("alarm_state/slots").update({ 
+                [`slot${slotNumber}_url`]: downloadURL,
+                [`slot${slotNumber}_hash`]: Date.now(), // This acts as a version number
+                auth_pin: validPinPayload 
+            });
+            
+            status.innerText = `Slot ${slotNumber} Updated!`;
         }
 
         // --- VOICE RECORDER LOGIC (AUTO-WAV) ---
