@@ -6,6 +6,7 @@
     <title>UNTITLED // SAFE</title>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-storage-compat.js"></script> ```
     <style>
         :root { --bg: #f4f4f4; --text: #000; --terminal-bg: #111; --terminal-text: #0f0; --accent: #d32f2f; }
         body { font-family: monospace; background-color: var(--bg); color: var(--text); padding: 20px; margin: 0; display: flex; flex-direction: column; align-items: center; }
@@ -108,6 +109,23 @@
         </div>
 
         <div class="card">
+            <label style="margin-bottom: 15px;">AUDIO MANAGER (MP3 / VOICE)</label>
+            
+            <div style="border: 1px dashed var(--text); padding: 10px; margin-bottom: 15px; text-align: center;">
+                <input type="file" id="mp3-upload" accept="audio/mp3" style="display: none;" onchange="uploadMP3(event)">
+                <button class="btn-outline" style="width: 100%; border-color: #000; color: #000;" onclick="document.getElementById('mp3-upload').click()">UPLOAD NEW MP3 FILE</button>
+                <div id="upload-status" style="font-size: 0.8rem; margin-top: 10px; color: #666;">No file selected (Max 1.5MB)</div>
+            </div>
+
+            <div class="btn-grid">
+                <button class="btn-outline" onclick="playCustomAudio('jamaican_horn.mp3')">📯 JAMAICAN HORN</button>
+                <button class="btn-outline" onclick="playCustomAudio('custom.mp3')">🔊 PLAY CUSTOM</button>
+            </div>
+            
+            <button class="btn-solid" style="background: #333; border-color: #333;" id="mic-btn" onmousedown="startRecording()" onmouseup="stopRecording()">🎙️ HOLD TO RECORD VOICE</button>
+        </div>
+
+        <div class="card">
             <div class="switch-container" style="margin-bottom: 5px;">
                 <label class="switch"><input type="checkbox" id="periodic-toggle" onchange="saveSettings()"><span class="slider-toggle"></span></label>
                 <span id="periodic-title">PERIODIC BEEP EVERY 30 SEC</span>
@@ -145,15 +163,22 @@
             
             <div class="version-text">
                 SYSTEM UPTIME: <span id="sys-uptime">0h 0m</span><br><br>
-                <span id="fw-version">FW: 260331124932</span>
+                <span id="fw-version">FW: 260331130719</span>
             </div>
         </div>
+    </div>
+
+    <div style="text-align: center; font-family: monospace; font-size: 0.75rem; color: #888; margin-top: 20px; margin-bottom: 20px;">
+        DESIGNED & ENGINEERED BY<br>
+        <span style="color: var(--text); font-weight: bold; font-size: 0.9rem;">ROMAN GODISH</span><br>
+        HFA • 2026
     </div>
 
     <script>
         const firebaseConfig = { projectId: "untitledcafe-bfd05", databaseURL: "https://untitledcafe-bfd05-default-rtdb.europe-west1.firebasedatabase.app" };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
+        const storage = firebase.storage();
 
         let sessionPasscode = "";
         let validPinPayload = null; // Stores the exact data type (String or Number) that the database accepted
@@ -294,6 +319,58 @@
             const url = prompt("Enter raw GitHub firmware URL (.bin):", "https://romixplay.github.io/esp32-alarm/firmware.bin");
             if(url) await sendCommand("sync_firmware", { url });
         }
+
+        // --- AUDIO MANAGER LOGIC ---
+        async function uploadMP3(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            // Limit to 1.5MB for ESP32 safety
+            if (file.size > 1500000) {
+                alert("File too large! Must be under 1.5MB for the ESP32.");
+                return;
+            }
+
+            const status = document.getElementById('upload-status');
+            status.innerText = "Uploading " + file.name + "...";
+            status.style.color = "var(--accent)";
+
+            try {
+                // Upload to Firebase Storage under the name 'custom.mp3'
+                const storageRef = storage.ref('audio/custom.mp3');
+                await storageRef.put(file);
+                const downloadURL = await storageRef.getDownloadURL();
+                
+                status.innerText = "Upload Complete!";
+                status.style.color = "green";
+                console.log("File available at", downloadURL);
+                
+                // Save the URL to the database so the ESP32 knows where it is
+                await db.ref("alarm_state").update({ custom_audio_url: downloadURL, auth_pin: validPinPayload });
+            } catch (e) {
+                status.innerText = "Upload failed.";
+                status.style.color = "red";
+                console.error(e);
+            }
+        }
+
+        async function playCustomAudio(fileName) {
+            try {
+                // Fetch the URL from storage and tell the ESP32 to play it
+                const url = await storage.ref('audio/' + fileName).getDownloadURL();
+                await db.ref("alarm_state").update({ 
+                    play_stream: url, 
+                    stream_trigger: Date.now(), 
+                    auth_pin: validPinPayload 
+                });
+            } catch (e) {
+                alert("Audio file not found in cloud storage.");
+            }
+        }
+
+        // Voice recorder placeholders
+        function startRecording() { document.getElementById('mic-btn').innerText = "🔴 RECORDING..."; document.getElementById('mic-btn').style.background = "var(--accent)"; }
+        function stopRecording() { document.getElementById('mic-btn').innerText = "🎙️ HOLD TO RECORD VOICE"; document.getElementById('mic-btn').style.background = "#333"; }
 
         function setupSystemMonitors() {
             let logHistory = [];
