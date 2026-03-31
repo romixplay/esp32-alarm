@@ -415,6 +415,25 @@ void loop() {
         StaticJsonDocument<1024> doc;
         deserializeJson(doc, fbdo.to<String>());
 
+        // ==========================================
+        // SYSTEM ADMIN COMMANDS
+        // ==========================================
+        if (doc.containsKey("force_reboot")) {
+          bool needsReboot = doc["force_reboot"].as<bool>();
+          if (needsReboot) {
+            logToCloud("Reboot command received. Clearing flag and restarting...");
+            
+            // 1. Clear the flag in the cloud so we don't Death Loop!
+            Firebase.RTDB.setBool(&fbdo, "/alarm_state/force_reboot", false);
+            
+            // 2. Wait 1 second to ensure the network packet actually sends
+            delay(1000); 
+            
+            // 3. Pull the plug
+            ESP.restart(); 
+          }
+        }
+
         // Strict Type Parsing for Toggles
         if (doc.containsKey("amp_enabled")) ampEnabled = doc["amp_enabled"].as<bool>();
         if (doc.containsKey("wobble_active")) wobbleActive = doc["wobble_active"].as<bool>();
@@ -455,15 +474,30 @@ void loop() {
           }
         }
 
-          // =========================================================
-          // THE BULLETPROOF GHOST FIX (SYNC ALL TIMESTAMPS ON BOOT)
-          // =========================================================
+        // ==========================================
+        // 1. FIRST BOOT SYNC (GHOST FIX + AMNESIA FIX)
+        // ==========================================
         if (isFirstBootSync) {
+          // Sync the main alarm clock
           if (doc.containsKey("trigger_time")) lastProcessedTrigger = doc["trigger_time"].as<double>();
           if (doc.containsKey("stop_trigger")) lastStopTrigger = doc["stop_trigger"].as<double>();
+          
+          // Sync the Slot system clock
+          if (doc.containsKey("slot_trigger")) lastSlotTrigger = doc["slot_trigger"].as<double>();
+
+          // AMNESIA FIX: Assume whatever files we have on disk match the cloud on boot
+          if (doc.containsKey("slots")) {
+             for (int i = 0; i <= 4; i++) {
+                String sName = (i == 0) ? "horn" : "slot" + String(i);
+                if (doc["slots"].containsKey(sName)) {
+                   localSlotVersions[i] = doc["slots"][sName]["version"].as<double>();
+                }
+             }
+          }
+
           isFirstBootSync = false;
-          logToCloud("First boot sync complete. Ignoring historical triggers.");
-        } 
+          Serial.println("First boot sync complete. Hardware is armed.");
+        }
         else {
           // NORMAL POLLING (Only runs after the first boot sync is complete)
           
