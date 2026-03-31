@@ -164,7 +164,7 @@
             
             <div class="version-text">
                 SYSTEM UPTIME: <span id="sys-uptime">0h 0m</span><br><br>
-                <span id="fw-version">FW: 260331162354</span>
+                <span id="fw-version">FW: 260331171312</span>
             </div>
         </div>
     </div>
@@ -327,57 +327,192 @@
             if(url) await sendCommand("sync_firmware", { url });
         }
 
-        // --- AUDIO MANAGER LOGIC ---
+        // --- AUDIO MANAGER LOGIC (WITH AUTO-WAV CONVERTER) ---
+        
         async function uploadMP3(event) {
             const file = event.target.files[0];
             if (!file) return;
-            
-            // Limit to 1.5MB for ESP32 safety
-            if (file.size > 1500000) {
-                alert("File too large! Must be under 1.5MB for the ESP32.");
-                return;
-            }
 
             const status = document.getElementById('upload-status');
-            status.innerText = "Uploading " + file.name + "...";
+            status.innerText = "Processing & Converting Audio...";
             status.style.color = "var(--accent)";
 
             try {
-                // Upload to Firebase Storage under the name 'custom.mp3'
-                const storageRef = storage.ref('audio/custom.mp3');
-                await storageRef.put(file);
+                // 1. Read the uploaded file (MP3, M4A, etc.)
+                const arrayBuffer = await file.arrayBuffer();
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const decodedAudio = await audioContext.decodeAudioData(arrayBuffer);
+
+                // 2. Downsample to 8000Hz Mono (Perfect for ESP32)
+                const offlineCtx = new OfflineAudioContext(1, decodedAudio.duration * 8000, 8000);
+                const source = offlineCtx.createBufferSource();
+                source.buffer = decodedAudio;
+                source.connect(offlineCtx.destination);
+                source.start();
+                const resampledAudio = await offlineCtx.startRendering();
+
+                // 3. Convert the raw audio into a .WAV file Blob
+                const wavBlob = audioBufferToWav(resampledAudio);
+
+                // Check size (1.2MB limit for our LittleFS partition)
+                if (wavBlob.size > 1200000) {
+                    status.innerText = "Error: Audio is too long (Max ~70 seconds).";
+                    status.style.color = "red";
+                    return;
+                }
+
+                status.innerText = "Uploading optimized .WAV to Cloud...";
+
+                // 4. Upload the optimized WAV to Firebase
+                const storageRef = storage.ref('audio/custom.wav');
+                await storageRef.put(wavBlob);
                 const downloadURL = await storageRef.getDownloadURL();
                 
-                status.innerText = "Upload Complete!";
+                status.innerText = "Upload Complete! Ready to play.";
                 status.style.color = "green";
-                console.log("File available at", downloadURL);
                 
-                // Save the URL to the database so the ESP32 knows where it is
+                // Save URL to database
                 await db.ref("alarm_state").update({ custom_audio_url: downloadURL, auth_pin: validPinPayload });
             } catch (e) {
-                status.innerText = "Upload failed.";
+                status.innerText = "Conversion/Upload failed.";
                 status.style.color = "red";
                 console.error(e);
             }
         }
 
+        // --- THE WAV ENCODER UTILITY ---
+        function audioBufferToWav(buffer) {
+            const numChannels = buffer.numberOfChannels;
+            const sampleRate = buffer.sampleRate;
+            const format = 1; // PCM
+            const bitDepth = 16;
+            
+            const result = new Float32Array(buffer.length);
+            buffer.copyFromChannel(result, 0);
+            
+            const bufferLength = result.length * 2 + 44;
+            const wavBuffer = new ArrayBuffer(bufferLength);
+            const view = new DataView(wavBuffer);
+            
+            const writeString = (view, offset, string) => { for (let i = 0; i < string.length; i++) view.setUint8(offset + i, string.charCodeAt(i)); };
+            
+            writeString(view, 0, 'RIFF');
+            view.setUint32(4, 36 + result.length * 2, true);
+            writeString(view, 8, 'WAVE');
+            writeString(view, 12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, format, true);
+            view.setUint16(22, numChannels, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * numChannels * 2, true);
+            view.setUint16(32, numChannels * 2, true);
+            view.setUint16(34, bitDepth, true);
+            writeString(view, 36, 'data');
+            view.setUint32(40, result.length * 2, true);
+            
+            // Write 16-bit PCM data
+            let offset = 44;
+            for (let i = 0; i < result.length; i++, offset += 2) {
+                let s = Math.max(-1, Math.min(1, result[i]));
+                view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+            }
+            return new Blob([wavBuffer], { type: 'audio/wav' });
+        }
+
         async function playCustomAudio(fileName) {
             try {
-                // Fetch the URL from storage and tell the ESP32 to play it
-                const url = await storage.ref('audio/' + fileName).getDownloadURL();
-                await db.ref("alarm_state").update({ 
-                    play_stream: url, 
-                    stream_trigger: Date.now(), 
-                    auth_pin: validPinPayload 
-                });
+                // Tell it to look for the .wav extension we just uploaded!
+                const url = await storage.ref('audio/' + fileName.replace('.mp3', '.wav')).getDownloadURL();
+                await db.ref("alarm_state").update({ play_stream: url, stream_trigger: Date.now(), auth_pin: validPinPayload });
             } catch (e) {
                 alert("Audio file not found in cloud storage.");
             }
         }
 
-        // Voice recorder placeholders
-        function startRecording() { document.getElementById('mic-btn').innerText = "🔴 RECORDING..."; document.getElementById('mic-btn').style.background = "var(--accent)"; }
-        function stopRecording() { document.getElementById('mic-btn').innerText = "🎙️ HOLD TO RECORD VOICE"; document.getElementById('mic-btn').style.background = "#333"; }
+        // --- VOICE RECORDER LOGIC (AUTO-WAV) ---
+        let mediaRecorder;
+        let audioChunks = [];
+        let isRecording = false;
+
+        async function startRecording() {
+            try {
+                // Request access to the iPhone/Mac microphone
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = event => {
+                    audioChunks.push(event.data);
+                };
+
+                // When you let go of the button, this triggers:
+                mediaRecorder.onstop = async () => {
+                    const status = document.getElementById('upload-status');
+                    status.innerText = "Processing Voice Note...";
+                    status.style.color = "var(--accent)";
+
+                    try {
+                        const audioBlob = new Blob(audioChunks);
+                        const arrayBuffer = await audioBlob.arrayBuffer();
+                        
+                        // Decode the raw microphone audio
+                        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                        const decodedAudio = await audioContext.decodeAudioData(arrayBuffer);
+
+                        // Downsample to 8000Hz Mono for the ESP32
+                        const offlineCtx = new OfflineAudioContext(1, decodedAudio.duration * 8000, 8000);
+                        const source = offlineCtx.createBufferSource();
+                        source.buffer = decodedAudio;
+                        source.connect(offlineCtx.destination);
+                        source.start();
+                        const resampledAudio = await offlineCtx.startRendering();
+
+                        // Convert to WAV
+                        const wavBlob = audioBufferToWav(resampledAudio);
+
+                        if (wavBlob.size > 1200000) {
+                            status.innerText = "Error: Voice note too long.";
+                            status.style.color = "red";
+                            return;
+                        }
+
+                        status.innerText = "Uploading Voice Note...";
+                        const storageRef = storage.ref('audio/custom.wav'); // Overwrites the same file!
+                        await storageRef.put(wavBlob);
+                        const downloadURL = await storageRef.getDownloadURL();
+                        
+                        status.innerText = "Voice Note Ready! Click PLAY CUSTOM.";
+                        status.style.color = "green";
+                        
+                        // Save URL to database
+                        await db.ref("alarm_state").update({ custom_audio_url: downloadURL, auth_pin: validPinPayload });
+                    } catch (e) {
+                        status.innerText = "Voice processing failed.";
+                        status.style.color = "red";
+                        console.error(e);
+                    }
+                };
+
+                mediaRecorder.start();
+                isRecording = true;
+                const btn = document.getElementById('mic-btn');
+                btn.innerText = "🔴 RECORDING... (RELEASE TO SEND)";
+                btn.style.background = "var(--accent)";
+            } catch (err) {
+                alert("Microphone access denied. Make sure you are on HTTPS.");
+                console.error(err);
+            }
+        }
+
+        function stopRecording() {
+            if (isRecording && mediaRecorder.state !== "inactive") {
+                mediaRecorder.stop();
+                isRecording = false;
+                const btn = document.getElementById('mic-btn');
+                btn.innerText = "🎙️ HOLD TO RECORD VOICE";
+                btn.style.background = "#333";
+            }
+        }
 
         function setupSystemMonitors() {
             let logHistory = [];

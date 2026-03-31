@@ -1,5 +1,8 @@
 #include <WiFi.h>
 #include <LittleFS.h>
+#include "AudioFileSourceLittleFS.h"
+#include "AudioGeneratorWAV.h"
+#include "AudioOutputI2S.h"
 #include <WiFiMulti.h>
 #include <Firebase_ESP_Client.h>
 #include <ArduinoOTA.h>
@@ -42,8 +45,12 @@ double lastStopTrigger = 0;
 double lastStreamTrigger = 0;
 
 // --- DYNAMIC AUDIO ENGINE CONFIG ---
-volatile int audioMode = 0; // 0=Silence, 1=Siren, 2=Beep, 3=MP3
+volatile int audioMode = 0; // 0=Silence, 1=Siren, 2=Beep, 3=WAV
 
+// WAV Local Playback Objects
+AudioGeneratorWAV *wav = NULL;
+AudioFileSourceLittleFS *file = NULL;
+AudioOutputI2S *out = NULL;
 
 bool isFirstBootSync = true; // The Ghost Trigger Fix
 
@@ -74,7 +81,7 @@ unsigned long alarmEndTime = 0;
 bool holdTriggerActive = false;
 
 // =========================================================================
-// FREERTOS AUDIO TASK (Pure Analog Synth Engine - STABLE)
+// FREERTOS AUDIO TASK (Synth + Local WAV Hybrid Engine)
 // =========================================================================
 void audioTask(void * pvParameters) {
   const int BATCH_SIZE = 512;
@@ -90,40 +97,95 @@ void audioTask(void * pvParameters) {
       if (!wasPlaying) {
         digitalWrite(PIN_AMP_SD, HIGH); 
         wasPlaying = true;
-        currentFreq = (audioMode == 1) ? sirenMinFreq : periodicFreq;
-        phase = 0;
+        
+        // --- WAV INITIALIZATION ---
+        if (audioMode == 3) {
+          i2s_driver_uninstall(I2S_NUM_0); // Free the hardware from the Synth
+          
+          audioLogger = &Serial;
+          file = new AudioFileSourceLittleFS("/custom.wav");
+          out = new AudioOutputI2S(0, 1); 
+          out->SetPinout(PIN_I2S_BCLK, PIN_I2S_LRC, PIN_I2S_DIN);
+          out->SetGain(mainVolume); 
+          
+          wav = new AudioGeneratorWAV();
+          wav->begin(file, out);
+        } else {
+          // --- SYNTH INITIALIZATION ---
+          currentFreq = (audioMode == 1) ? sirenMinFreq : periodicFreq;
+          phase = 0;
+        }
       }
       
-      int16_t amplitude = (int16_t)(15000 * ((audioMode == 1) ? mainVolume : periodicVolume));
-
-      for(int i = 0; i < BATCH_SIZE; i++) {
-        if (audioMode == 1 && i == 0) {
-          currentFreq += (sirenSpeed * direction);
-          if (currentFreq >= sirenMaxFreq) { currentFreq = sirenMaxFreq; direction = -1; }
-          if (currentFreq <= sirenMinFreq) { currentFreq = sirenMinFreq; direction = 1; }
+      // -----------------------------------------------------
+      // ROUTE 1: PLAYING LOCAL WAV (Audio Mode 3)
+      // -----------------------------------------------------
+      if (audioMode == 3) {
+        if (wav && wav->isRunning()) {
+          if (!wav->loop()) {
+            wav->stop(); 
+            audioMode = 0; // Song finished naturally
+          }
+        } else {
+          audioMode = 0; 
         }
-
-        int wobbleOffset = 0;
-        if (wobbleActive && audioMode == 1 && i == 0) {
-            wobblePhase += (wobbleSpeed * wobbleDir);
-            if (wobblePhase > 150) wobbleDir = -1;
-            if (wobblePhase < -150) wobbleDir = 1;
-            wobbleOffset = wobblePhase;
-        }
-
-        uint32_t phaseStep = (uint32_t)(((currentFreq + wobbleOffset) * 65536.0) / 44100.0);
-        phase += phaseStep;
-        sample[i] = ((phase & 0x8000) > 0) ? amplitude : -amplitude;
+        vTaskDelay(1 / portTICK_PERIOD_MS); 
       }
-
-      i2s_write(I2S_NUM_0, &sample, sizeof(sample), &bytes_written, portMAX_DELAY);
-      vTaskDelay(1 / portTICK_PERIOD_MS); 
+      
+      // -----------------------------------------------------
+      // ROUTE 2: PLAYING THE SYNTH (Audio Mode 1 or 2)
+      // -----------------------------------------------------
+      else {
+        int16_t amplitude = (int16_t)(15000 * ((audioMode == 1) ? mainVolume : periodicVolume));
+        for(int i = 0; i < BATCH_SIZE; i++) {
+          if (audioMode == 1 && i == 0) {
+            currentFreq += (sirenSpeed * direction);
+            if (currentFreq >= sirenMaxFreq) { currentFreq = sirenMaxFreq; direction = -1; }
+            if (currentFreq <= sirenMinFreq) { currentFreq = sirenMinFreq; direction = 1; }
+          }
+          int wobbleOffset = 0;
+          if (wobbleActive && audioMode == 1 && i == 0) {
+              wobblePhase += (wobbleSpeed * wobbleDir);
+              if (wobblePhase > 150) wobbleDir = -1;
+              if (wobblePhase < -150) wobbleDir = 1;
+              wobbleOffset = wobblePhase;
+          }
+          uint32_t phaseStep = (uint32_t)(((currentFreq + wobbleOffset) * 65536.0) / 44100.0);
+          phase += phaseStep;
+          sample[i] = ((phase & 0x8000) > 0) ? amplitude : -amplitude;
+        }
+        i2s_write(I2S_NUM_0, &sample, sizeof(sample), &bytes_written, portMAX_DELAY);
+        vTaskDelay(1 / portTICK_PERIOD_MS); 
+      }
       
     } else {
+      // -----------------------------------------------------
+      // SILENCE & MEMORY CLEANUP
+      // -----------------------------------------------------
       if (wasPlaying) {
         digitalWrite(PIN_AMP_SD, LOW); 
-        i2s_zero_dma_buffer(I2S_NUM_0); 
         wasPlaying = false;
+
+        // If we just finished a WAV, destroy the objects to free RAM
+        if (audioMode == 3 || wav != NULL) {
+          if (wav && wav->isRunning()) wav->stop();
+          if (wav) { delete wav; wav = NULL; }
+          if (file) { delete file; file = NULL; }
+          if (out) { delete out; out = NULL; }
+          
+          // Re-install the Synth driver so the main alarm is ready
+          i2s_config_t i2s_config = {
+            .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX), .sample_rate = 44100, .bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT,
+            .channel_format = I2S_CHANNEL_FMT_ONLY_LEFT, .communication_format = I2S_COMM_FORMAT_STAND_I2S,
+            .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1, .dma_buf_count = 8, .dma_buf_len = 1024, .use_apll = false, .tx_desc_auto_clear = true
+          };
+          i2s_pin_config_t pin_config = { .bck_io_num = PIN_I2S_BCLK, .ws_io_num = PIN_I2S_LRC, .data_out_num = PIN_I2S_DIN, .data_in_num = I2S_PIN_NO_CHANGE };
+          i2s_driver_install(I2S_NUM_0, &i2s_config, 0, NULL);
+          i2s_set_pin(I2S_NUM_0, &pin_config);
+          i2s_zero_dma_buffer(I2S_NUM_0);
+        } else {
+          i2s_zero_dma_buffer(I2S_NUM_0); 
+        }
       }
       vTaskDelay(50 / portTICK_PERIOD_MS); 
     }
@@ -148,6 +210,41 @@ void logToCloud(String message) {
     String uniqueLog = "[" + timeString + "] " + message;
     Firebase.RTDB.setString(&fbdo, "/system/latest_log", uniqueLog); 
   }
+}
+
+// =========================================================================
+// LITTLE-FS SECURE DOWNLOADER (WAV)
+// =========================================================================
+bool downloadAudioToFS(String url) {
+  logToCloud("Downloading WAV to LittleFS...");
+  
+  WiFiClientSecure client;
+  client.setInsecure(); // Skip certificate validation
+  HTTPClient http;
+  
+  if (http.begin(client, url)) {
+    int httpCode = http.GET();
+    if (httpCode == HTTP_CODE_OK) {
+      // Open the hard drive file and overwrite whatever was there before
+      File f = LittleFS.open("/custom.wav", FILE_WRITE);
+      if (!f) {
+        logToCloud("Error: LittleFS write failed.");
+        return false;
+      }
+      
+      // Stream the Wi-Fi data directly into the flash memory
+      http.writeToStream(&f);
+      f.close();
+      
+      logToCloud("Download complete! Playing audio...");
+      http.end();
+      return true;
+    } else {
+      logToCloud("HTTP Download Failed. Code: " + String(httpCode));
+    }
+    http.end();
+  }
+  return false;
 }
 
 // =========================================================================
@@ -181,7 +278,7 @@ void setup() {
   wifiMulti.addAP("Sadan", "shamanshaman");
   wifiMulti.addAP("Ra", "88888888");
   wifiMulti.addAP("Dekel26", "100200300");
-  wifiMulti.addAP("Untitled Cafe - 5Ghz", "onemorecup"); 
+  wifiMulti.addAP("Untitled Cafe", "onemorecup"); 
 
   Serial.print("Connecting to Wi-Fi");
   while (wifiMulti.run() != WL_CONNECTED) {
@@ -189,7 +286,7 @@ void setup() {
     delay(300);
   }
   
-Serial.println("\nWi-Fi Connected!");
+  Serial.println("\nWi-Fi Connected!");
   Serial.printf("Free RAM: %d bytes\n", ESP.getFreeHeap());
   Serial.print("Network: ");
   Serial.println(WiFi.SSID()); 
@@ -265,7 +362,7 @@ void loop() {
 
   if (Firebase.ready() && signupOK) {
     
-   // ---------------------------------------------------------
+    // ---------------------------------------------------------
     // 1. FAST HARDWARE LOGIC
     // ---------------------------------------------------------
     if (!ampEnabled) {
@@ -285,10 +382,22 @@ void loop() {
       }
       if (millis() < periodicEndTime) beepActive = true;
 
-      // The Strict Priority Router
-      if (mainAlarmActive) audioMode = 1;      // Siren wins
-      else if (beepActive) audioMode = 2; // Beep plays if Siren is quiet
-      else audioMode = 0;                 // SILENCE
+      // ==========================================
+      // THE STRICT PRIORITY ROUTER 
+      // ==========================================
+      if (mainAlarmActive) {
+        audioMode = 1;       // 1st Priority: Siren overrides EVERYTHING
+      } 
+      else if (audioMode == 3) {
+        // 2nd Priority: WAV STREAMING. 
+        // Do nothing! Let it play. The audioTask will automatically set this back to 0 when the song ends.
+      } 
+      else if (beepActive) {
+        audioMode = 2;       // 3rd Priority: Beep plays only if Siren and WAV are quiet
+      } 
+      else {
+        audioMode = 0;       // Default: SILENCE
+      }
     }
 
     // ---------------------------------------------------------
@@ -376,7 +485,28 @@ void loop() {
           }
         }
 
-      
+        // ==========================================
+        // WAV PLAYBACK TRIGGER
+        // ==========================================
+        if (doc.containsKey("stream_trigger") && doc.containsKey("play_stream")) {
+          double currentStream = doc["stream_trigger"].as<double>();
+          if (currentStream > lastStreamTrigger) {
+            lastStreamTrigger = currentStream; 
+            String url = doc["play_stream"].as<String>();
+            
+            // 1. Force everything to stop immediately
+            audioMode = 0;
+            alarmEndTime = 0; 
+            holdTriggerActive = false; 
+            delay(200); // Give the audioTask a moment to cleanly release the speaker
+            
+            // 2. Lock the CPU and download the file to the hard drive
+            if (downloadAudioToFS(url)) {
+              audioMode = 3; // 3. Start local playback!
+            }
+          }
+        }
+
       }
     }
     
