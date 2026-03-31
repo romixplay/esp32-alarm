@@ -145,7 +145,7 @@
             
             <div class="version-text">
                 SYSTEM UPTIME: <span id="sys-uptime">0h 0m</span><br><br>
-                <span id="fw-version">FW: 260331124403</span>
+                <span id="fw-version">FW: 260331124932</span>
             </div>
         </div>
     </div>
@@ -156,6 +156,7 @@
         const db = firebase.database();
 
         let sessionPasscode = "";
+        let validPinPayload = null; // Stores the exact data type (String or Number) that the database accepted
 
         window.onload = function() {
             const savedPin = localStorage.getItem("system_pin");
@@ -165,18 +166,29 @@
             }
         };
 
-        // NEW LOGIN: Tests the Security Rules instantly over WebSocket
+        // NEW LOGIN: The "Lock Picker"
         async function login() {
             const btn = document.getElementById('auth-btn');
             const err = document.getElementById('auth-error');
-            sessionPasscode = document.getElementById('passcode-input').value;
+            sessionPasscode = document.getElementById('passcode-input').value.trim();
             btn.innerText = "VERIFYING..."; 
             err.style.display = 'none';
 
             try {
-                // Perform a tiny dummy write. If it passes the Rules, the PIN is correct!
-                await db.ref("alarm_state").update({ auth_pin: sessionPasscode, last_ui_login: Date.now() });
+                // ATTEMPT 1: Try sending it as a pure String
+                try {
+                    await db.ref("alarm_state").update({ auth_pin: sessionPasscode, last_ui_login: Date.now() });
+                    validPinPayload = sessionPasscode; // It worked!
+                } catch (stringError) {
+                    // ATTEMPT 2: If the DB rejected the string, try sending it as a raw Number
+                    const pinNum = Number(sessionPasscode);
+                    if (isNaN(pinNum)) throw stringError; // If it's not a number, it's a real denial
+                    
+                    await db.ref("alarm_state").update({ auth_pin: pinNum, last_ui_login: Date.now() });
+                    validPinPayload = pinNum; // It worked!
+                }
                 
+                // If we survive the Try/Catch, we are authorized.
                 localStorage.setItem("system_pin", sessionPasscode); 
                 document.getElementById('auth-screen').style.display = 'none';
                 document.getElementById('main-app').style.display = 'block';
@@ -194,20 +206,20 @@
         // --- DIRECT DATABASE COMMANDS (ZERO LATENCY) ---
         async function sendCommand(action, payload = {}) {
             try {
-                payload.auth_pin = sessionPasscode; // Always attach the key for the Rules Gatekeeper
+                payload.auth_pin = validPinPayload; // Use the exact data type that passed the gatekeeper
 
                 if (action === "trigger_alarm") {
-                    await db.ref("alarm_state").update({ trigger_time: Date.now(), duration: payload.duration, hold_trigger: false, auth_pin: sessionPasscode });
+                    await db.ref("alarm_state").update({ trigger_time: Date.now(), duration: payload.duration, hold_trigger: false, auth_pin: validPinPayload });
                 } else if (action === "hold_alarm") {
-                    await db.ref("alarm_state").update({ hold_trigger: payload.active, auth_pin: sessionPasscode });
+                    await db.ref("alarm_state").update({ hold_trigger: payload.active, auth_pin: validPinPayload });
                 } else if (action === "stop_alarm") {
-                    await db.ref("alarm_state").update({ stop_trigger: Date.now(), hold_trigger: false, auth_pin: sessionPasscode });
+                    await db.ref("alarm_state").update({ stop_trigger: Date.now(), hold_trigger: false, auth_pin: validPinPayload });
                 } else if (action === "update_settings") {
                     await db.ref("alarm_state").update(payload);
                 } else if (action === "reboot_esp") {
-                    await db.ref("alarm_state").update({ force_reboot: true, auth_pin: sessionPasscode });
+                    await db.ref("alarm_state").update({ force_reboot: true, auth_pin: validPinPayload });
                 } else if (action === "sync_firmware") {
-                    await db.ref("system").update({ ota_url: payload.url, auth_pin: sessionPasscode });
+                    await db.ref("system").update({ ota_url: payload.url, auth_pin: validPinPayload });
                 }
             } catch (error) {
                 console.error("Command failed:", error);
