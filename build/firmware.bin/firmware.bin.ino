@@ -8,6 +8,9 @@
 #include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
 #include <esp_wifi.h>
+#include "AudioFileSourceHTTPStream.h"
+#include "AudioGeneratorMP3.h"
+#include "AudioOutputI2S.h"
 
 #include "addons/TokenHelper.h"
 #include "addons/RTDBHelper.h"
@@ -41,6 +44,12 @@ double lastStopTrigger = 0;
 // --- DYNAMIC AUDIO ENGINE CONFIG ---
 volatile int audioMode = 0; 
 bool isFirstBootSync = true; // The Ghost Trigger Fix
+
+// MP3 Streaming Objects
+AudioGeneratorMP3 *mp3;
+AudioFileSourceHTTPStream *file;
+AudioOutputI2S *out;
+String currentStreamUrl = "";
 
 // Hardware State
 volatile bool ampEnabled = true;
@@ -254,8 +263,8 @@ void loop() {
 
   if (Firebase.ready() && signupOK) {
     
-    // ---------------------------------------------------------
-    // 1. FAST HARDWARE LOGIC (Bulletproof Routing)
+   // ---------------------------------------------------------
+    // 1. FAST HARDWARE LOGIC
     // ---------------------------------------------------------
     if (!ampEnabled) {
       // If the AMP is switched off, brutally kill all active timers and silence the synth
@@ -274,10 +283,22 @@ void loop() {
       }
       if (millis() < periodicEndTime) beepActive = true;
 
-      // The Strict Priority Router
-      if (mainAlarmActive) audioMode = 1;      // Siren wins
-      else if (beepActive) audioMode = 2; // Beep plays if Siren is quiet
-      else audioMode = 0;                 // SILENCE (Fixes the infinite alarm bug!)
+      // ==========================================
+      // THE STRICT PRIORITY ROUTER (UPDATED)
+      // ==========================================
+      if (mainAlarmActive) {
+        audioMode = 1;       // 1st Priority: Siren overrides EVERYTHING
+      } 
+      else if (audioMode == 3) {
+        // 2nd Priority: MP3 STREAMING. 
+        // Do nothing! Let it play. The audioTask will automatically set this back to 0 when the song ends.
+      } 
+      else if (beepActive) {
+        audioMode = 2;       // 3rd Priority: Beep plays only if Siren and MP3 are quiet
+      } 
+      else {
+        audioMode = 0;       // Default: SILENCE
+      }
     }
 
     // ---------------------------------------------------------
@@ -353,6 +374,22 @@ void loop() {
             int duration = doc["duration"] ? doc["duration"].as<int>() : 3;
             logToCloud("Timed alarm triggered for " + String(duration) + "s.");
             alarmEndTime = millis() + (duration * 1000);
+          }
+        }
+
+        // MP3 Stream Trigger
+        if (doc.containsKey("stream_trigger") && doc.containsKey("play_stream")) {
+          double currentStream = doc["stream_trigger"].as<double>();
+          if (currentStream > lastProcessedTrigger) {
+            lastProcessedTrigger = currentStream; 
+            currentStreamUrl = doc["play_stream"].as<String>();
+            
+            // Kill existing alarms, switch to MP3 mode
+            alarmEndTime = 0; 
+            holdTriggerActive = false; 
+            audioMode = 3; 
+            
+            logToCloud("Streaming MP3 from cloud...");
           }
         }
       }
