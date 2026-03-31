@@ -39,9 +39,12 @@ unsigned long lastAlarmPoll = 0;
 unsigned long lastAdminPoll = 0;
 double lastProcessedTrigger = 0;
 double lastStopTrigger = 0;
+double lastStreamTrigger = 0;
 
 // --- DYNAMIC AUDIO ENGINE CONFIG ---
-volatile int audioMode = 0; 
+volatile int audioMode = 0; // 0=Silence, 1=Siren, 2=Beep, 3=MP3
+
+
 bool isFirstBootSync = true; // The Ghost Trigger Fix
 
 // Hardware State
@@ -79,11 +82,8 @@ void audioTask(void * pvParameters) {
   size_t bytes_written;
   bool wasPlaying = false; 
 
-  uint32_t phase = 0;
-  float currentFreq = 800;
-  int direction = 1;
-  int wobblePhase = 0;
-  int wobbleDir = 1;
+  uint32_t phase = 0; float currentFreq = 800;
+  int direction = 1; int wobblePhase = 0; int wobbleDir = 1;
   
   while(true) {
     if (audioMode > 0 && ampEnabled) {
@@ -155,6 +155,19 @@ void logToCloud(String message) {
 // =========================================================================
 void setup() {
   Serial.begin(115200);
+
+  // =================================================================
+  // MOUNT INTERNAL FILE SYSTEM (LittleFS)
+  // =================================================================
+  Serial.println("Mounting LittleFS Hard Drive...");
+  // The 'true' parameter tells it to format the drive if it fails to mount (first boot only)
+  if(!LittleFS.begin(true)){
+    Serial.println("LittleFS Mount Failed! System cannot save MP3s.");
+    return;
+  }
+  Serial.println("LittleFS Mounted Successfully.");
+  Serial.printf("Total Space: %u bytes\n", LittleFS.totalBytes());
+  Serial.printf("Used Space: %u bytes\n", LittleFS.usedBytes());
   
   pinMode(PIN_AMP_SD, OUTPUT);
   digitalWrite(PIN_AMP_SD, LOW); 
@@ -354,8 +367,10 @@ void loop() {
           }
         }
 
+      
       }
     }
+    
 
     // ---------------------------------------------------------
     // 3. SLOW ADMIN POLLING (Every 10 Seconds)
