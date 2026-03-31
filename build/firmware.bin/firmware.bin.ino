@@ -1,8 +1,5 @@
 #include <WiFi.h>
 #include <LittleFS.h>
-#include "AudioFileSourceLittleFS.h"
-#include "AudioGeneratorWAV.h"
-#include "AudioOutputI2S.h"
 #include <WiFiMulti.h>
 #include <Firebase_ESP_Client.h>
 #include <ArduinoOTA.h>
@@ -47,10 +44,8 @@ double lastStreamTrigger = 0;
 // --- DYNAMIC AUDIO ENGINE CONFIG ---
 volatile int audioMode = 0; // 0=Silence, 1=Siren, 2=Beep, 3=WAV
 
-// WAV Local Playback Objects
-AudioGeneratorWAV *wav = NULL;
-AudioFileSourceLittleFS *file = NULL;
-AudioOutputI2S *out = NULL;
+// Native WAV Objects
+File wavFile;
 
 bool isFirstBootSync = true; // The Ghost Trigger Fix
 
@@ -81,11 +76,12 @@ unsigned long alarmEndTime = 0;
 bool holdTriggerActive = false;
 
 // =========================================================================
-// FREERTOS AUDIO TASK (Synth + Local WAV Hybrid Engine)
+// FREERTOS AUDIO TASK (Native Native I2S + Synth Engine)
 // =========================================================================
 void audioTask(void * pvParameters) {
   const int BATCH_SIZE = 512;
   int16_t sample[BATCH_SIZE];
+  uint8_t wavBuffer[1024]; // Native buffer for reading the hard drive
   size_t bytes_written;
   bool wasPlaying = false; 
 
@@ -98,35 +94,58 @@ void audioTask(void * pvParameters) {
         digitalWrite(PIN_AMP_SD, HIGH); 
         wasPlaying = true;
         
-        // --- WAV INITIALIZATION ---
+        // --- HARDWARE RECONFIGURATION ---
+        i2s_driver_uninstall(I2S_NUM_0); // Always uninstall the current driver before switching
+        
         if (audioMode == 3) {
-          i2s_driver_uninstall(I2S_NUM_0); // Free the hardware from the Synth
+          // 1. Setup I2S for 8000Hz (Native WAV Speed)
+          i2s_config_t i2s_config_wav = {
+            .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX), .sample_rate = 8000, .bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT,
+            .channel_format = I2S_CHANNEL_FMT_ONLY_LEFT, .communication_format = I2S_COMM_FORMAT_STAND_I2S,
+            .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1, .dma_buf_count = 8, .dma_buf_len = 512, .use_apll = false, .tx_desc_auto_clear = true
+          };
+          i2s_pin_config_t pin_config = { .bck_io_num = PIN_I2S_BCLK, .ws_io_num = PIN_I2S_LRC, .data_out_num = PIN_I2S_DIN, .data_in_num = I2S_PIN_NO_CHANGE };
+          i2s_driver_install(I2S_NUM_0, &i2s_config_wav, 0, NULL);
+          i2s_set_pin(I2S_NUM_0, &pin_config);
           
-          audioLogger = &Serial;
-          file = new AudioFileSourceLittleFS("/custom.wav");
-          out = new AudioOutputI2S(0, 1); 
-          out->SetPinout(PIN_I2S_BCLK, PIN_I2S_LRC, PIN_I2S_DIN);
-          out->SetGain(mainVolume); 
+          // 2. Open the file natively and skip the 44-byte WAV header
+          wavFile = LittleFS.open("/custom.wav", FILE_READ);
+          if (wavFile) wavFile.seek(44); 
           
-          wav = new AudioGeneratorWAV();
-          wav->begin(file, out);
         } else {
-          // --- SYNTH INITIALIZATION ---
+          // 1. Setup I2S for 44100Hz (High-Def Synth Speed)
+          i2s_config_t i2s_config_synth = {
+            .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX), .sample_rate = 44100, .bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT,
+            .channel_format = I2S_CHANNEL_FMT_ONLY_LEFT, .communication_format = I2S_COMM_FORMAT_STAND_I2S,
+            .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1, .dma_buf_count = 8, .dma_buf_len = 1024, .use_apll = false, .tx_desc_auto_clear = true
+          };
+          i2s_pin_config_t pin_config = { .bck_io_num = PIN_I2S_BCLK, .ws_io_num = PIN_I2S_LRC, .data_out_num = PIN_I2S_DIN, .data_in_num = I2S_PIN_NO_CHANGE };
+          i2s_driver_install(I2S_NUM_0, &i2s_config_synth, 0, NULL);
+          i2s_set_pin(I2S_NUM_0, &pin_config);
+          
           currentFreq = (audioMode == 1) ? sirenMinFreq : periodicFreq;
           phase = 0;
         }
       }
       
       // -----------------------------------------------------
-      // ROUTE 1: PLAYING LOCAL WAV (Audio Mode 3)
+      // ROUTE 1: PLAYING NATIVE WAV (Audio Mode 3)
       // -----------------------------------------------------
       if (audioMode == 3) {
-        if (wav && wav->isRunning()) {
-          if (!wav->loop()) {
-            wav->stop(); 
-            audioMode = 0; // Song finished naturally
+        if (wavFile && wavFile.available()) {
+          // Read a chunk from the hard drive and dump it to the speaker
+          size_t bytesRead = wavFile.read(wavBuffer, sizeof(wavBuffer));
+          
+          // Apply main volume control to the raw numbers
+          int16_t* pcmData = (int16_t*)wavBuffer;
+          for(int i = 0; i < bytesRead / 2; i++) {
+             pcmData[i] = pcmData[i] * mainVolume; 
           }
+          
+          i2s_write(I2S_NUM_0, wavBuffer, bytesRead, &bytes_written, portMAX_DELAY);
         } else {
+          // End of file! Clean up.
+          if (wavFile) wavFile.close();
           audioMode = 0; 
         }
         vTaskDelay(1 / portTICK_PERIOD_MS); 
@@ -165,27 +184,9 @@ void audioTask(void * pvParameters) {
       if (wasPlaying) {
         digitalWrite(PIN_AMP_SD, LOW); 
         wasPlaying = false;
-
-        // If we just finished a WAV, destroy the objects to free RAM
-        if (audioMode == 3 || wav != NULL) {
-          if (wav && wav->isRunning()) wav->stop();
-          if (wav) { delete wav; wav = NULL; }
-          if (file) { delete file; file = NULL; }
-          if (out) { delete out; out = NULL; }
-          
-          // Re-install the Synth driver so the main alarm is ready
-          i2s_config_t i2s_config = {
-            .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX), .sample_rate = 44100, .bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT,
-            .channel_format = I2S_CHANNEL_FMT_ONLY_LEFT, .communication_format = I2S_COMM_FORMAT_STAND_I2S,
-            .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1, .dma_buf_count = 8, .dma_buf_len = 1024, .use_apll = false, .tx_desc_auto_clear = true
-          };
-          i2s_pin_config_t pin_config = { .bck_io_num = PIN_I2S_BCLK, .ws_io_num = PIN_I2S_LRC, .data_out_num = PIN_I2S_DIN, .data_in_num = I2S_PIN_NO_CHANGE };
-          i2s_driver_install(I2S_NUM_0, &i2s_config, 0, NULL);
-          i2s_set_pin(I2S_NUM_0, &pin_config);
-          i2s_zero_dma_buffer(I2S_NUM_0);
-        } else {
-          i2s_zero_dma_buffer(I2S_NUM_0); 
-        }
+        
+        if (wavFile) wavFile.close();
+        i2s_zero_dma_buffer(I2S_NUM_0); 
       }
       vTaskDelay(50 / portTICK_PERIOD_MS); 
     }
@@ -318,13 +319,18 @@ void setup() {
   config.signer.tokens.legacy_token = DATABASE_SECRET; 
   config.timeout.socketConnection = 10 * 1000;
 
+  // --- THE SSL SHOCK ABSORBERS ---
+  fbdo.setBSSLBufferSize(4096, 1024); // Force allocation of dedicated SSL memory
+  fbdo.setResponseSize(1024);         // Prevent memory overflow from big database reads
+  // ------------------------------------------------
+
   Firebase.begin(&config, &auth);
-  Firebase.reconnectWiFi(true);
+  Firebase.reconnectWiFi(true);       // Auto-heal dropped connections from the router
 
   Serial.println("Warming up secure cloud connection...");
   delay(2000);
   
-  signupOK = true; 
+  signupOK = true;
 
   // =================================================================
   // HARDWARE CONFIGURATION
