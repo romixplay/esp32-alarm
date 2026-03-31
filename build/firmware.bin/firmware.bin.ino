@@ -39,17 +39,18 @@ unsigned long lastAlarmPoll = 0;
 unsigned long lastAdminPoll = 0;
 double lastProcessedTrigger = 0;
 double lastStopTrigger = 0;
-double lastStreamTrigger = 0;
-double lastSlotTrigger = 0;
-String localHashes[6] = {"", "", "", "", "", ""}; // Stores the version of files we have
+double lastSlotTrigger = 0;      // Tracks the newest slot play command
+bool isFirstBootSync = true;    // The Ghost Trigger Fix
+
+// Smart Slot Tracking
+String currentWavPath = "/horn.wav";           // The file currently queued to play
+double localSlotVersions[6] = {0, 0, 0, 0, 0, 0}; // 0=Horn, 1-5=Custom Slots
 
 // --- DYNAMIC AUDIO ENGINE CONFIG ---
 volatile int audioMode = 0; // 0=Silence, 1=Siren, 2=Beep, 3=WAV
 
 // Native WAV Objects
 File wavFile;
-
-bool isFirstBootSync = true; // The Ghost Trigger Fix
 
 // Hardware State
 volatile bool ampEnabled = true;
@@ -111,7 +112,7 @@ void audioTask(void * pvParameters) {
           i2s_set_pin(I2S_NUM_0, &pin_config);
           
           // 2. Open the file natively and skip the 44-byte WAV header
-          wavFile = LittleFS.open("/custom.wav", FILE_READ);
+          wavFile = LittleFS.open(currentWavPath, FILE_READ);
           if (wavFile) wavFile.seek(44); 
           
         } else {
@@ -216,34 +217,27 @@ void logToCloud(String message) {
 }
 
 // =========================================================================
-// LITTLE-FS SECURE DOWNLOADER (WAV)
+// SMART SLOT DOWNLOADER
 // =========================================================================
-bool downloadAudioToFS(String url) {
-  logToCloud("Downloading WAV to LittleFS...");
+bool downloadToSlot(String url, String filename) {
+  logToCloud("Updating local file: " + filename);
   
   WiFiClientSecure client;
-  client.setInsecure(); // Skip certificate validation
+  client.setInsecure(); 
   HTTPClient http;
   
   if (http.begin(client, url)) {
     int httpCode = http.GET();
     if (httpCode == HTTP_CODE_OK) {
-      // Open the hard drive file and overwrite whatever was there before
-      File f = LittleFS.open("/custom.wav", FILE_WRITE);
+      File f = LittleFS.open(filename, FILE_WRITE);
       if (!f) {
-        logToCloud("Error: LittleFS write failed.");
+        logToCloud("Error: LittleFS write failed for " + filename);
         return false;
       }
-      
-      // Stream the Wi-Fi data directly into the flash memory
       http.writeToStream(&f);
       f.close();
-      
-      logToCloud("Download complete! Playing audio...");
       http.end();
       return true;
-    } else {
-      logToCloud("HTTP Download Failed. Code: " + String(httpCode));
     }
     http.end();
   }
@@ -411,7 +405,7 @@ void loop() {
     // ---------------------------------------------------------
     // 2. ALARM POLLING
     // ---------------------------------------------------------
-    if (millis() - lastAlarmPoll > 250) {
+    if (millis() - lastAlarmPoll > 200) {
       lastAlarmPoll = millis();
 
       if (Firebase.RTDB.getJSON(&fbdo, "/alarm_state")) {
@@ -494,29 +488,47 @@ void loop() {
         }
 
         // ==========================================
-        // SMART SLOT SYSTEM
+        // SMART SLOT ROUTER (CACHE + PLAY)
         // ==========================================
-        if (doc.containsKey("slot_trigger") && doc.containsKey("play_slot")) {
-          double currentTrigger = doc["slot_trigger"].as<double>();
-          if (currentTrigger > lastSlotTrigger) {
-            lastSlotTrigger = currentTrigger;
-            int slot = doc["play_slot"].as<int>();
-            String slotPath = "/slot" + String(slot) + ".wav";
+        if (doc.containsKey("slot_trigger") && doc.containsKey("active_slot")) {
+          double trigger = doc["slot_trigger"].as<double>();
+          
+          // BOOT HORN FIX: Only process if we are past the first sync
+          if (isFirstBootSync) {
+            lastSlotTrigger = trigger; // Sync the clock without playing
+            // ... (rest of your existing first boot sync logic) ...
+          } 
+          else if (trigger > lastSlotTrigger) {
+            lastSlotTrigger = trigger;
+            int slotID = doc["active_slot"].as<int>();
+            String slotName = (slotID == 0) ? "horn" : "slot" + String(slotID);
+            String path = "/" + slotName + ".wav";
             
-            // Check if we need to download a new version
-            String cloudHash = doc["slots"]["slot" + String(slot) + "_hash"].as<String>();
-            String cloudUrl = doc["slots"]["slot" + String(slot) + "_url"].as<String>();
+            if (doc["slots"].containsKey(slotName)) {
+               double cloudVersion = doc["slots"][slotName]["version"].as<double>();
 
-            if (cloudHash != localHashes[slot] || !LittleFS.exists(slotPath)) {
-               logToCloud("Slot " + String(slot) + " is new/outdated. Downloading...");
-               if (downloadAudioToFS(cloudUrl, slotPath)) {
-                 localHashes[slot] = cloudHash;
+               // --- DELETE LOGIC ---
+               if (cloudVersion == -1) {
+                  LittleFS.remove(path);
+                  localSlotVersions[slotID] = -1;
+                  logToCloud("Slot " + String(slotID) + " deleted from disk.");
+                  return; // Stop here, don't try to play a deleted file
+               }
+
+               // --- SYNC LOGIC ---
+               if (cloudVersion > localSlotVersions[slotID] || !LittleFS.exists(path)) {
+                  String url = doc["slots"][slotName]["url"].as<String>();
+                  if (downloadToSlot(url, path)) {
+                     localSlotVersions[slotID] = cloudVersion;
+                  }
                }
             }
-
-            // INSTANT PLAYBACK
-            audioMode = 3; 
-            currentWavPath = slotPath; // Tell the audioTask which file to open
+            
+            // --- INSTANT PLAYBACK ---
+            if (LittleFS.exists(path)) {
+                currentWavPath = path;
+                audioMode = 3; 
+            }
           }
         }
 

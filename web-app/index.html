@@ -44,12 +44,28 @@
         input:checked + .slider-toggle { background-color: #0f0; }
         input:checked + .slider-toggle:before { transform: translateX(20px); }
 
-        /* Styling for folded elements */
         details { padding: 10px; background: #fafafa; border: 1px dashed var(--text); margin-top: 15px; }
         summary { font-weight: bold; cursor: pointer; outline: none; text-transform: uppercase; }
         
         .terminal { background-color: var(--terminal-bg); color: var(--terminal-text); padding: 1rem; font-size: 0.85rem; height: 150px; overflow-y: auto; border: 2px solid var(--text); margin-bottom: 15px; }
         .version-text { font-size: 0.9rem; font-weight: bold; color: #444; text-align: center; margin-top: 15px; }
+        
+        /* New Slot System Styling */
+        .slot-row.priority { display: flex; gap: 10px; margin-bottom: 15px; align-items: center; }
+        .btn-play-priority { flex-grow: 1; background: var(--accent); color: white; font-weight: bold; height: 50px; border: 2px solid black; cursor: pointer; font-family: monospace; }
+        .btn-icon-label { background: #eee; border: 2px solid #000; padding: 10px 15px; cursor: pointer; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; height: 26px; }
+
+        #slot-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .slot-card { background: #f9f9f9; border: 2px solid #333; padding: 10px; text-align: center; }
+        .slot-card h4 { margin: 0 0 10px 0; font-size: 0.9rem; letter-spacing: 1px; }
+        .btn-main-play { width: 100%; height: 40px; margin-bottom: 8px; background: white; border: 2px solid black; font-family: monospace; font-weight: bold; cursor: pointer; }
+        .btn-main-play:active { background: #000; color: #fff; }
+
+        .slot-controls { display: flex; justify-content: space-between; gap: 4px; }
+        .btn-sm { font-size: 0.7rem; padding: 6px 0; background: #333; color: white; border: none; flex: 1; cursor: pointer; font-family: monospace; text-align: center; font-weight: bold; }
+        .btn-sm.mic-btn { background: #555; }
+        .btn-sm.del-btn { background: #a00; }
+        .btn-sm:active { opacity: 0.7; }
     </style>
 </head>
 <body>
@@ -70,10 +86,10 @@
         <div class="card">
             <label>MANUAL ALARM TRIGGER</label>
             <div class="btn-grid">
-                <button class="btn-outline" onclick="triggerAlarm(3)">SOUND (3s)</button>
-                <button class="btn-outline" onclick="triggerAlarm(5)">SOUND (5s)</button>
-                <button class="btn-outline" onclick="triggerAlarm(10)">SOUND (10s)</button>
-                <button class="btn-outline" onclick="triggerAlarm(30)">SOUND (30s)</button>
+                <button class="btn-outline" onclick="triggerAlarm(3)">SOUND ALARM 3 SEC</button>
+                <button class="btn-outline" onclick="triggerAlarm(5)">SOUND ALARM 5 SEC</button>
+                <button class="btn-outline" onclick="triggerAlarm(10)">SOUND ALARM 10 SEC</button>
+                <button class="btn-outline" onclick="triggerAlarm(30)">SOUND ALARM 30 SEC</button>
             </div>
             <div class="btn-grid">
                 <button class="btn-solid" onmousedown="holdAlarm(true)" onmouseup="holdAlarm(false)" onmouseleave="holdAlarm(false)" ontouchstart="holdAlarm(true)" ontouchend="holdAlarm(false)">HOLD TO PLAY</button>
@@ -110,20 +126,52 @@
         </div>
 
         <div class="card">
-            <label style="margin-bottom: 15px;">AUDIO MANAGER (MP3 / VOICE)</label>
+            <label style="margin-bottom: 15px;">AUDIO LIBRARY (MAX 10s PER SLOT)</label>
             
-            <div style="border: 1px dashed var(--text); padding: 10px; margin-bottom: 15px; text-align: center;">
-                <input type="file" id="mp3-upload" accept="audio/mp3" style="display: none;" onchange="uploadMP3(event)">
-                <button class="btn-outline" style="width: 100%; border-color: #000; color: #000;" onclick="document.getElementById('mp3-upload').click()">UPLOAD NEW MP3 FILE</button>
-                <div id="upload-status" style="font-size: 0.8rem; margin-top: 10px; color: #666;">No file selected (Max 1.5MB)</div>
+            <div class="slot-row priority">
+                <button onclick="triggerSlot(0)" class="btn-play-priority">📯 JAMAICAN HORN (SLOT 0)</button>
+                <label class="btn-icon-label">📁<input type="file" hidden onchange="uploadToSlot(event, 0)"></label>
             </div>
 
-            <div class="btn-grid">
-                <button class="btn-outline" onclick="playCustomAudio('jamaican_horn.mp3')">📯 JAMAICAN HORN</button>
-                <button class="btn-outline" onclick="playCustomAudio('custom.mp3')">🔊 PLAY CUSTOM</button>
+            <div id="slot-grid">
+                <div class="slot-card">
+                    <h4>SLOT 1</h4>
+                    <button onclick="triggerSlot(1)" class="btn-main-play">PLAY</button>
+                    <div class="slot-controls">
+                        <label class="btn-sm">UP<input type="file" hidden onchange="uploadToSlot(event, 1)"></label>
+                        <button onmousedown="startRecording(1)" onmouseup="stopRecording()" ontouchstart="startRecording(1)" ontouchend="stopRecording()" class="btn-sm mic-btn">REC</button>
+                        <button onclick="deleteSlot(1)" class="btn-sm del-btn">CLR</button>
+                    </div>
+                </div>
+                <div class="slot-card">
+                    <h4>SLOT 2</h4>
+                    <button onclick="triggerSlot(2)" class="btn-main-play">PLAY</button>
+                    <div class="slot-controls">
+                        <label class="btn-sm">UP<input type="file" hidden onchange="uploadToSlot(event, 2)"></label>
+                        <button onmousedown="startRecording(2)" onmouseup="stopRecording()" ontouchstart="startRecording(2)" ontouchend="stopRecording()" class="btn-sm mic-btn">REC</button>
+                        <button onclick="deleteSlot(2)" class="btn-sm del-btn">CLR</button>
+                    </div>
+                </div>
+                <div class="slot-card">
+                    <h4>SLOT 3</h4>
+                    <button onclick="triggerSlot(3)" class="btn-main-play">PLAY</button>
+                    <div class="slot-controls">
+                        <label class="btn-sm">UP<input type="file" hidden onchange="uploadToSlot(event, 3)"></label>
+                        <button onmousedown="startRecording(3)" onmouseup="stopRecording()" ontouchstart="startRecording(3)" ontouchend="stopRecording()" class="btn-sm mic-btn">REC</button>
+                        <button onclick="deleteSlot(3)" class="btn-sm del-btn">CLR</button>
+                    </div>
+                </div>
+                <div class="slot-card">
+                    <h4>SLOT 4</h4>
+                    <button onclick="triggerSlot(4)" class="btn-main-play">PLAY</button>
+                    <div class="slot-controls">
+                        <label class="btn-sm">UP<input type="file" hidden onchange="uploadToSlot(event, 4)"></label>
+                        <button onmousedown="startRecording(4)" onmouseup="stopRecording()" ontouchstart="startRecording(4)" ontouchend="stopRecording()" class="btn-sm mic-btn">REC</button>
+                        <button onclick="deleteSlot(4)" class="btn-sm del-btn">CLR</button>
+                    </div>
+                </div>
             </div>
-            
-            <button class="btn-solid" style="background: #333; border-color: #333;" id="mic-btn" onmousedown="startRecording()" onmouseup="stopRecording()">🎙️ HOLD TO RECORD VOICE</button>
+            <p id="upload-status" style="text-align:center; margin-top:15px; font-size:0.85em; font-weight: bold;"></p>
         </div>
 
         <div class="card">
@@ -164,7 +212,7 @@
             
             <div class="version-text">
                 SYSTEM UPTIME: <span id="sys-uptime">0h 0m</span><br><br>
-                <span id="fw-version">FW: 260331182150</span>
+                <span id="fw-version">FW: 260401001159</span>
             </div>
         </div>
     </div>
@@ -186,7 +234,7 @@
         const storage = firebase.storage();
 
         let sessionPasscode = "";
-        let validPinPayload = null; // Stores the exact data type (String or Number) that the database accepted
+        let validPinPayload = null; 
 
         window.onload = function() {
             const savedPin = localStorage.getItem("system_pin");
@@ -196,7 +244,6 @@
             }
         };
 
-        // NEW LOGIN: The "Lock Picker"
         async function login() {
             const btn = document.getElementById('auth-btn');
             const err = document.getElementById('auth-error');
@@ -205,20 +252,17 @@
             err.style.display = 'none';
 
             try {
-                // ATTEMPT 1: Try sending it as a pure String
                 try {
                     await db.ref("alarm_state").update({ auth_pin: sessionPasscode, last_ui_login: Date.now() });
-                    validPinPayload = sessionPasscode; // It worked!
+                    validPinPayload = sessionPasscode; 
                 } catch (stringError) {
-                    // ATTEMPT 2: If the DB rejected the string, try sending it as a raw Number
                     const pinNum = Number(sessionPasscode);
-                    if (isNaN(pinNum)) throw stringError; // If it's not a number, it's a real denial
+                    if (isNaN(pinNum)) throw stringError; 
                     
                     await db.ref("alarm_state").update({ auth_pin: pinNum, last_ui_login: Date.now() });
-                    validPinPayload = pinNum; // It worked!
+                    validPinPayload = pinNum; 
                 }
                 
-                // If we survive the Try/Catch, we are authorized.
                 localStorage.setItem("system_pin", sessionPasscode); 
                 document.getElementById('auth-screen').style.display = 'none';
                 document.getElementById('main-app').style.display = 'block';
@@ -233,10 +277,9 @@
             }
         }
 
-        // --- DIRECT DATABASE COMMANDS (ZERO LATENCY) ---
         async function sendCommand(action, payload = {}) {
             try {
-                payload.auth_pin = validPinPayload; // Use the exact data type that passed the gatekeeper
+                payload.auth_pin = validPinPayload; 
 
                 if (action === "trigger_alarm") {
                     await db.ref("alarm_state").update({ trigger_time: Date.now(), duration: payload.duration, hold_trigger: false, auth_pin: validPinPayload });
@@ -327,64 +370,89 @@
             if(url) await sendCommand("sync_firmware", { url });
         }
 
-        // --- AUDIO MANAGER LOGIC (WITH AUTO-WAV CONVERTER) ---
-        
-        async function uploadMP3(event) {
-            const file = event.target.files[0];
-            if (!file) return;
+        // ==========================================
+        // SMART SLOT AUDIO MANAGER
+        // ==========================================
 
+        async function triggerSlot(slotID) {
+            await db.ref("alarm_state").update({ 
+                active_slot: slotID, 
+                slot_trigger: Date.now(), 
+                auth_pin: validPinPayload 
+            });
+        }
+
+        async function deleteSlot(slotID) {
+            if (!confirm(`Clear audio from Slot ${slotID}?`)) return;
+            const slotName = slotID === 0 ? "horn" : `slot${slotID}`;
+            await db.ref(`alarm_state/slots/${slotName}`).update({
+                version: -1, // Tells ESP32 to delete the file natively
+                auth_pin: validPinPayload
+            });
+            document.getElementById('upload-status').innerText = `Slot ${slotID} cleared.`;
+            document.getElementById('upload-status').style.color = "var(--accent)";
+        }
+
+        function uploadToSlot(event, slotID) {
+            const file = event.target.files[0];
+            if (file) convertAndUpload(file, slotID);
+        }
+
+        async function convertAndUpload(file, slotID) {
             const status = document.getElementById('upload-status');
-            status.innerText = "Processing & Converting Audio...";
-            status.style.color = "var(--accent)";
+            status.innerText = `Syncing Slot ${slotID}...`;
+            status.style.color = "orange";
 
             try {
-                // 1. Read the uploaded file (MP3, M4A, etc.)
+                // 1. Read & Decode
                 const arrayBuffer = await file.arrayBuffer();
                 const audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 const decodedAudio = await audioContext.decodeAudioData(arrayBuffer);
 
-                // 2. Downsample to 8000Hz Mono (Perfect for ESP32)
+                // 2. Protect ESP32 Memory
+                if (decodedAudio.duration > 10.5) {
+                    status.innerText = "Error: Audio exceeds 10s limit.";
+                    status.style.color = "red";
+                    return;
+                }
+
+                // 3. Downsample to 8000Hz Mono
                 const offlineCtx = new OfflineAudioContext(1, decodedAudio.duration * 8000, 8000);
                 const source = offlineCtx.createBufferSource();
                 source.buffer = decodedAudio;
                 source.connect(offlineCtx.destination);
                 source.start();
                 const resampledAudio = await offlineCtx.startRendering();
-
-                // 3. Convert the raw audio into a .WAV file Blob
                 const wavBlob = audioBufferToWav(resampledAudio);
 
-                // Check size (1.2MB limit for our LittleFS partition)
-                if (wavBlob.size > 1200000) {
-                    status.innerText = "Error: Audio is too long (Max ~70 seconds).";
-                    status.style.color = "red";
-                    return;
-                }
-
-                status.innerText = "Uploading optimized .WAV to Cloud...";
-
-                // 4. Upload the optimized WAV to Firebase
-                const storageRef = storage.ref('audio/custom.wav');
+                // 4. Upload to Cloud
+                status.innerText = `Uploading Slot ${slotID} to Cloud...`;
+                const slotName = (slotID === 0) ? "horn" : `slot${slotID}`;
+                const storageRef = storage.ref(`audio/${slotName}.wav`);
                 await storageRef.put(wavBlob);
                 const downloadURL = await storageRef.getDownloadURL();
-                
-                status.innerText = "Upload Complete! Ready to play.";
+
+                // 5. Update Database Version (Triggers ESP32 Download)
+                await db.ref(`alarm_state/slots/${slotName}`).update({
+                    url: downloadURL,
+                    version: Date.now(),
+                    auth_pin: validPinPayload
+                });
+
+                status.innerText = `Slot ${slotID} Synced successfully!`;
                 status.style.color = "green";
-                
-                // Save URL to database
-                await db.ref("alarm_state").update({ custom_audio_url: downloadURL, auth_pin: validPinPayload });
             } catch (e) {
-                status.innerText = "Conversion/Upload failed.";
+                status.innerText = "Upload failed.";
                 status.style.color = "red";
                 console.error(e);
             }
         }
 
-        // --- THE WAV ENCODER UTILITY ---
+        // --- WAV CONVERTER UTILITY ---
         function audioBufferToWav(buffer) {
             const numChannels = buffer.numberOfChannels;
             const sampleRate = buffer.sampleRate;
-            const format = 1; // PCM
+            const format = 1; 
             const bitDepth = 16;
             
             const result = new Float32Array(buffer.length);
@@ -410,7 +478,6 @@
             writeString(view, 36, 'data');
             view.setUint32(40, result.length * 2, true);
             
-            // Write 16-bit PCM data
             let offset = 44;
             for (let i = 0; i < result.length; i++, offset += 2) {
                 let s = Math.max(-1, Math.min(1, result[i]));
@@ -419,46 +486,14 @@
             return new Blob([wavBuffer], { type: 'audio/wav' });
         }
 
-        async function playAudioSlot(slotNumber) {
-            // Tell the ESP32 to play a specific slot from its OWN hard drive
-            await db.ref("alarm_state").update({ 
-                play_slot: slotNumber, 
-                slot_trigger: Date.now(), 
-                auth_pin: validPinPayload 
-            });
-        }
-
-        async function uploadToSlot(event, slotNumber) {
-            const file = event.target.files[0];
-            if (!file) return;
-            
-            const status = document.getElementById('upload-status');
-            status.innerText = `Updating Slot ${slotNumber}...`;
-            
-            // ... (Your existing conversion logic here to get wavBlob) ...
-            
-            const storageRef = storage.ref(`audio/slot${slotNumber}.wav`);
-            await storageRef.put(wavBlob);
-            const downloadURL = await storageRef.getDownloadURL();
-
-            // Tell the ESP32: "Your local slot X is now out of date. Download this new URL."
-            await db.ref("alarm_state/slots").update({ 
-                [`slot${slotNumber}_url`]: downloadURL,
-                [`slot${slotNumber}_hash`]: Date.now(), // This acts as a version number
-                auth_pin: validPinPayload 
-            });
-            
-            status.innerText = `Slot ${slotNumber} Updated!`;
-        }
-
-        // --- VOICE RECORDER LOGIC (AUTO-WAV) ---
+        // --- DYNAMIC VOICE RECORDER ---
         let mediaRecorder;
         let audioChunks = [];
-        let isRecording = false;
+        let currentRecordSlot = null; // Tracks which button is held down
 
-        async function startRecording() {
+        async function startRecording(slotID) {
             try {
-                // Request access to the iPhone/Mac microphone
+                currentRecordSlot = slotID;
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 mediaRecorder = new MediaRecorder(stream);
                 audioChunks = [];
@@ -467,75 +502,29 @@
                     audioChunks.push(event.data);
                 };
 
-                // When you let go of the button, this triggers:
                 mediaRecorder.onstop = async () => {
-                    const status = document.getElementById('upload-status');
-                    status.innerText = "Processing Voice Note...";
-                    status.style.color = "var(--accent)";
-
-                    try {
+                    if (audioChunks.length > 0 && currentRecordSlot !== null) {
                         const audioBlob = new Blob(audioChunks);
-                        const arrayBuffer = await audioBlob.arrayBuffer();
-                        
-                        // Decode the raw microphone audio
-                        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                        const decodedAudio = await audioContext.decodeAudioData(arrayBuffer);
-
-                        // Downsample to 8000Hz Mono for the ESP32
-                        const offlineCtx = new OfflineAudioContext(1, decodedAudio.duration * 8000, 8000);
-                        const source = offlineCtx.createBufferSource();
-                        source.buffer = decodedAudio;
-                        source.connect(offlineCtx.destination);
-                        source.start();
-                        const resampledAudio = await offlineCtx.startRendering();
-
-                        // Convert to WAV
-                        const wavBlob = audioBufferToWav(resampledAudio);
-
-                        if (wavBlob.size > 1200000) {
-                            status.innerText = "Error: Voice note too long.";
-                            status.style.color = "red";
-                            return;
-                        }
-
-                        status.innerText = "Uploading Voice Note...";
-                        const storageRef = storage.ref('audio/custom.wav'); // Overwrites the same file!
-                        await storageRef.put(wavBlob);
-                        const downloadURL = await storageRef.getDownloadURL();
-                        
-                        status.innerText = "Voice Note Ready! Click PLAY CUSTOM.";
-                        status.style.color = "green";
-                        
-                        // Save URL to database
-                        await db.ref("alarm_state").update({ custom_audio_url: downloadURL, auth_pin: validPinPayload });
-                    } catch (e) {
-                        status.innerText = "Voice processing failed.";
-                        status.style.color = "red";
-                        console.error(e);
+                        convertAndUpload(audioBlob, currentRecordSlot);
                     }
                 };
 
                 mediaRecorder.start();
-                isRecording = true;
-                const btn = document.getElementById('mic-btn');
-                btn.innerText = "🔴 RECORDING... (RELEASE TO SEND)";
-                btn.style.background = "var(--accent)";
+                document.getElementById('upload-status').innerText = `🔴 Recording to Slot ${slotID} (Release to save)...`;
+                document.getElementById('upload-status').style.color = "var(--accent)";
             } catch (err) {
-                alert("Microphone access denied. Make sure you are on HTTPS.");
+                alert("Microphone access denied. Ensure you are on HTTPS.");
                 console.error(err);
             }
         }
 
         function stopRecording() {
-            if (isRecording && mediaRecorder.state !== "inactive") {
+            if (mediaRecorder && mediaRecorder.state !== "inactive") {
                 mediaRecorder.stop();
-                isRecording = false;
-                const btn = document.getElementById('mic-btn');
-                btn.innerText = "🎙️ HOLD TO RECORD VOICE";
-                btn.style.background = "#333";
             }
         }
 
+        // --- SYSTEM MONITORS ---
         function setupSystemMonitors() {
             let logHistory = [];
             db.ref('system/latest_log').on('value', (snapshot) => {
