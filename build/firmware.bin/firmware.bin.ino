@@ -363,7 +363,7 @@ void setup() {
   i2s_zero_dma_buffer(I2S_NUM_0);
 
   // Start the isolated, math-free Audio Task
-  xTaskCreate(audioTask, "AudioTask", 4096, NULL, 1, NULL);
+  xTaskCreate(audioTask, "AudioTask", 4096, NULL, 3, NULL);
 
   logToCloud("System Booted v3.0 (Analog Synth Engine). IP: " + WiFi.localIP().toString());
 }
@@ -375,13 +375,12 @@ void loop() {
   ArduinoOTA.handle();
 
   // THE HARDWARE KILL-SWITCH
-  // This runs entirely independent of Wi-Fi. If the router dies, the audio still stops.
   if (isLocalAlarmActive) {
     if (millis() - localAlarmStartTime >= localAlarmDuration) {
       logToCloud("Hardware Timer: Stopping audio.");
-      audioMode = 0;              // Force Silence
-      holdTriggerActive = false;  // Release any lingering holds
-      isLocalAlarmActive = false; // Disarm the kill-switch
+      audioMode = 0;              
+      holdTriggerActive = false;  
+      isLocalAlarmActive = false; 
     }
   }
 
@@ -392,7 +391,6 @@ void loop() {
     
     // --- FAST PRIORITY ROUTER ---
     if (!ampEnabled) {
-      // Brutally kill all active timers and silence the synth if AMP is disabled
       alarmEndTime = 0;
       periodicEndTime = 0;
       holdTriggerActive = false;
@@ -402,163 +400,171 @@ void loop() {
       bool mainAlarmActive = holdTriggerActive || isLocalAlarmActive;
       bool beepActive = false;
 
-      // Periodic Beep Timer Logic
       if (periodicActive && (millis() - lastPeriodicTrigger > (periodicSecs * 1000))) {
         lastPeriodicTrigger = millis();
         periodicEndTime = millis() + (periodicLen * 1000);
       }
       if (millis() < periodicEndTime) beepActive = true;
 
-      // The Strict Priority Tree
-      if (mainAlarmActive) {
-        audioMode = 1;       // 1st Priority: Siren overrides EVERYTHING
-      } 
-      else if (audioMode == 3) {
-        // 2nd Priority: WAV STREAMING. Let it play. audioTask sets to 0 when done.
-      } 
-      else if (beepActive) {
-        audioMode = 2;       // 3rd Priority: Beep plays only if quiet
-      } 
-      else {
-        audioMode = 0;       // Default: SILENCE
-      }
+      if (mainAlarmActive) { audioMode = 1; } 
+      else if (audioMode == 3) { /* Let WAV play */ } 
+      else if (beepActive) { audioMode = 2; } 
+      else { audioMode = 0; }
     }
+  
+    // =========================================================================
+    // ZONE 3: CLOUD SYNC (SMART PING)
+    // =========================================================================
+    if (millis() - lastAlarmPoll > 800) {
+      lastAlarmPoll = millis();
 
-  // =========================================================================
-  // ZONE 3: CLOUD SYNC (SMART PING)
-  // =========================================================================
-  if (millis() - lastAlarmPoll > 800) {
-    lastAlarmPoll = millis();
+      // THE PING: Fetch 8 bytes
+      if (Firebase.RTDB.getDouble(&fbdo, "/alarm_state/master_update_time")) {
+        double cloudMasterUpdate = fbdo.to<double>();
 
-    // THE PING: Fetch exactly 8 bytes of data (a single number)
-    if (Firebase.RTDB.getDouble(&fbdo, "/alarm_state/master_update_time")) {
-      double cloudMasterUpdate = fbdo.to<double>();
+        if (cloudMasterUpdate > localMasterUpdate || isFirstBootSync) {
+          if (Firebase.RTDB.getJSON(&fbdo, "/alarm_state")) {
+            localMasterUpdate = cloudMasterUpdate; 
+            
+            StaticJsonDocument<1024> doc;
+            deserializeJson(doc, fbdo.to<String>());
 
-      // If the timestamp changed OR we just booted, we fetch the heavy payload
-      if (cloudMasterUpdate > localMasterUpdate || isFirstBootSync) {
-        
-        if (Firebase.RTDB.getJSON(&fbdo, "/alarm_state")) {
-          localMasterUpdate = cloudMasterUpdate; // Mark as successfully fetched
-          
-          StaticJsonDocument<1024> doc;
-          deserializeJson(doc, fbdo.to<String>());
-
-          // --- 3A. ADMIN OVERRIDES ---
-          if (doc.containsKey("force_reboot") && doc["force_reboot"].as<bool>() == true) {
-              logToCloud("Reboot command received. Restarting...");
-              Firebase.RTDB.setBool(&fbdo, "/alarm_state/force_reboot", false); 
-              delay(1000); 
-              ESP.restart(); 
-          }
-
-          // --- 3B. SETTINGS SYNC ---
-          if (doc.containsKey("amp_enabled")) ampEnabled = doc["amp_enabled"].as<bool>();
-          if (doc.containsKey("wobble_active")) wobbleActive = doc["wobble_active"].as<bool>();
-          if (doc.containsKey("volume")) mainVolume = constrain(doc["volume"].as<int>(), 0, 100) / 100.0;
-          if (doc.containsKey("siren_min")) sirenMinFreq = doc["siren_min"].as<int>();
-          if (doc.containsKey("siren_max")) sirenMaxFreq = doc["siren_max"].as<int>();
-          if (doc.containsKey("siren_speed")) sirenSpeed = doc["siren_speed"].as<int>();
-          if (doc.containsKey("wobble_speed")) wobbleSpeed = doc["wobble_speed"].as<int>();
-          
-          if (doc.containsKey("periodic_sec")) periodicSecs = doc["periodic_sec"].as<int>();
-          if (doc.containsKey("periodic_vol")) periodicVolume = constrain(doc["periodic_vol"].as<int>(), 0, 100) / 100.0;
-          if (doc.containsKey("periodic_freq")) periodicFreq = doc["periodic_freq"].as<int>();
-          if (doc.containsKey("periodic_len")) periodicLen = doc["periodic_len"].as<float>();
-          if (doc.containsKey("hold_trigger")) holdTriggerActive = doc["hold_trigger"].as<bool>();
-
-          if (doc.containsKey("periodic_active")) {
-            bool newState = doc["periodic_active"].as<bool>();
-            if (newState != periodicActive) {
-              periodicActive = newState;
-              if (periodicActive) logToCloud("Periodic Beep ON.");
-              else logToCloud("Periodic Beep: DISABLED");
+            if (doc.containsKey("force_reboot") && doc["force_reboot"].as<bool>() == true) {
+                logToCloud("Reboot command received. Restarting...");
+                Firebase.RTDB.setBool(&fbdo, "/alarm_state/force_reboot", false); 
+                delay(1000); 
+                ESP.restart(); 
             }
-          }
 
-          // --- 3C. THE TIME MACHINE (FIRST BOOT LOGIC) ---
-          if (isFirstBootSync) {
-            if (doc.containsKey("trigger_time")) lastProcessedTrigger = doc["trigger_time"].as<double>();
-            if (doc.containsKey("stop_trigger")) lastStopTrigger = doc["stop_trigger"].as<double>();
-            if (doc.containsKey("slot_trigger")) lastSlotTrigger = doc["slot_trigger"].as<double>();
+            if (doc.containsKey("amp_enabled")) ampEnabled = doc["amp_enabled"].as<bool>();
+            if (doc.containsKey("wobble_active")) wobbleActive = doc["wobble_active"].as<bool>();
+            if (doc.containsKey("volume")) mainVolume = constrain(doc["volume"].as<int>(), 0, 100) / 100.0;
+            if (doc.containsKey("siren_min")) sirenMinFreq = doc["siren_min"].as<int>();
+            if (doc.containsKey("siren_max")) sirenMaxFreq = doc["siren_max"].as<int>();
+            if (doc.containsKey("siren_speed")) sirenSpeed = doc["siren_speed"].as<int>();
+            if (doc.containsKey("wobble_speed")) wobbleSpeed = doc["wobble_speed"].as<int>();
+            
+            if (doc.containsKey("periodic_sec")) periodicSecs = doc["periodic_sec"].as<int>();
+            if (doc.containsKey("periodic_vol")) periodicVolume = constrain(doc["periodic_vol"].as<int>(), 0, 100) / 100.0;
+            if (doc.containsKey("periodic_freq")) periodicFreq = doc["periodic_freq"].as<int>();
+            if (doc.containsKey("periodic_len")) periodicLen = doc["periodic_len"].as<float>();
+            if (doc.containsKey("hold_trigger")) holdTriggerActive = doc["hold_trigger"].as<bool>();
 
-            if (doc.containsKey("slots")) {
-                for (int i = 0; i <= 4; i++) {
-                  String sName = (i == 0) ? "horn" : "slot" + String(i);
-                  if (doc["slots"].containsKey(sName)) {
-                      localSlotVersions[i] = doc["slots"][sName]["version"].as<double>();
+            if (doc.containsKey("periodic_active")) {
+              bool newState = doc["periodic_active"].as<bool>();
+              if (newState != periodicActive) {
+                periodicActive = newState;
+              }
+            }
+
+            if (isFirstBootSync) {
+              if (doc.containsKey("trigger_time")) lastProcessedTrigger = doc["trigger_time"].as<double>();
+              if (doc.containsKey("stop_trigger")) lastStopTrigger = doc["stop_trigger"].as<double>();
+              if (doc.containsKey("slot_trigger")) lastSlotTrigger = doc["slot_trigger"].as<double>();
+
+              if (doc.containsKey("slots")) {
+                  for (int i = 0; i <= 4; i++) {
+                    String sName = (i == 0) ? "horn" : "slot" + String(i);
+                    if (doc["slots"].containsKey(sName)) {
+                        localSlotVersions[i] = doc["slots"][sName]["version"].as<double>();
+                    }
                   }
+              }
+              isFirstBootSync = false;
+              Serial.println("First boot sync complete. Hardware is armed.");
+            } 
+            else {
+              if (doc.containsKey("stop_trigger")) {
+                double currentStop = doc["stop_trigger"].as<double>();
+                if (currentStop > lastStopTrigger) {
+                  lastStopTrigger = currentStop;
+                  isLocalAlarmActive = false; 
+                  holdTriggerActive = false;  
+                  audioMode = 0;              
+                  logToCloud("ALARM FORCE STOPPED.");
                 }
-            }
-            isFirstBootSync = false;
-            Serial.println("First boot sync complete. Hardware is armed.");
-          } 
-          
-          // --- 3D. LIVE ACTION ROUTER ---
-          else {
-            // 1. Force Stop Trigger
-            if (doc.containsKey("stop_trigger")) {
-              double currentStop = doc["stop_trigger"].as<double>();
-              if (currentStop > lastStopTrigger) {
-                lastStopTrigger = currentStop;
-                isLocalAlarmActive = false; 
-                holdTriggerActive = false;  
-                audioMode = 0;              
-                logToCloud("ALARM FORCE STOPPED.");
               }
-            }
 
-            // 2. Main Siren Trigger
-            if (doc.containsKey("trigger_time")) {
-              double currentTrigger = doc["trigger_time"].as<double>();
-              if (currentTrigger > lastProcessedTrigger) {
-                lastProcessedTrigger = currentTrigger; 
-                int durationSecs = doc["duration"] ? doc["duration"].as<int>() : 3;
-                logToCloud("Timed alarm triggered for " + String(durationSecs) + "s.");
-                
-                localAlarmDuration = durationSecs * 1000;
-                localAlarmStartTime = millis();
-                isLocalAlarmActive = true;
+              if (doc.containsKey("trigger_time")) {
+                double currentTrigger = doc["trigger_time"].as<double>();
+                if (currentTrigger > lastProcessedTrigger) {
+                  lastProcessedTrigger = currentTrigger; 
+                  int durationSecs = doc["duration"] ? doc["duration"].as<int>() : 3;
+                  logToCloud("Timed alarm triggered for " + String(durationSecs) + "s.");
+                  
+                  localAlarmDuration = durationSecs * 1000;
+                  localAlarmStartTime = millis();
+                  isLocalAlarmActive = true;
+                }
               }
-            }
 
-            // 3. Smart Slot Trigger
-            if (doc.containsKey("slot_trigger") && doc.containsKey("active_slot")) {
-              double currentSlotTrigger = doc["slot_trigger"].as<double>();
-              if (currentSlotTrigger > lastSlotTrigger) {
-                lastSlotTrigger = currentSlotTrigger;
-                
-                int slotID = doc["active_slot"].as<int>();
-                String slotName = (slotID == 0) ? "horn" : "slot" + String(slotID);
-                String path = "/" + slotName + ".wav";
-                
-                if (doc["slots"].containsKey(slotName)) {
-                    double cloudVersion = doc["slots"][slotName]["version"].as<double>();
+              if (doc.containsKey("slot_trigger") && doc.containsKey("active_slot")) {
+                double currentSlotTrigger = doc["slot_trigger"].as<double>();
+                if (currentSlotTrigger > lastSlotTrigger) {
+                  lastSlotTrigger = currentSlotTrigger;
+                  
+                  int slotID = doc["active_slot"].as<int>();
+                  String slotName = (slotID == 0) ? "horn" : "slot" + String(slotID);
+                  String path = "/" + slotName + ".wav";
+                  
+                  if (doc["slots"].containsKey(slotName)) {
+                      double cloudVersion = doc["slots"][slotName]["version"].as<double>();
 
-                    if (cloudVersion == -1) {
-                      LittleFS.remove(path);
-                      localSlotVersions[slotID] = -1;
-                      logToCloud("Slot " + String(slotID) + " deleted from disk.");
-                    }
-                    else if (cloudVersion > localSlotVersions[slotID] || !LittleFS.exists(path)) {
-                      String url = doc["slots"][slotName]["url"].as<String>();
-                      if (downloadToSlot(url, path)) {
-                          localSlotVersions[slotID] = cloudVersion;
+                      if (cloudVersion == -1) {
+                        LittleFS.remove(path);
+                        localSlotVersions[slotID] = -1;
+                        logToCloud("Slot " + String(slotID) + " deleted from disk.");
                       }
-                    }
-                }
-                
-                if (LittleFS.exists(path)) {
-                    currentWavPath = path;
-                    audioMode = 3; 
+                      else if (cloudVersion > localSlotVersions[slotID] || !LittleFS.exists(path)) {
+                        String url = doc["slots"][slotName]["url"].as<String>();
+                        if (downloadToSlot(url, path)) {
+                            localSlotVersions[slotID] = cloudVersion;
+                        }
+                      }
+                  }
+                  
+                  if (LittleFS.exists(path)) {
+                      currentWavPath = path;
+                      audioMode = 3; 
+                  }
                 }
               }
             }
           }
         }
       }
+      fbdo.clear(); 
     }
-    
-    // Clear the memory buffer regardless of whether we downloaded JSON or just the Ping
-    fbdo.clear(); 
+
+    // =========================================================================
+    // ZONE 4: LIGHTWEIGHT OTA CHECK (60s, Only if silent)
+    // =========================================================================
+    // We completely removed the heavy Ping/Uptime spam.
+    if (audioMode == 0 && (millis() - lastAdminPoll > 60000)) {
+      lastAdminPoll = millis();
+      
+      if (Firebase.RTDB.getString(&fbdo, "/system/ota_url")) {
+        String ota_url = fbdo.to<String>();
+        if (ota_url.length() > 10) {
+          logToCloud("OTA Triggered! Freeing memory...");
+          while (!Firebase.RTDB.deleteNode(&fbdo, "/system/ota_url")) { delay(500); }
+          delay(1000); 
+          
+          audioMode = 0;
+          digitalWrite(PIN_AMP_SD, LOW);
+          i2s_driver_uninstall(I2S_NUM_0); 
+          
+          WiFiClientSecure client;
+          client.setInsecure(); 
+          client.setTimeout(15000); 
+          httpUpdate.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+          httpUpdate.update(client, ota_url);
+          ESP.restart(); 
+        }
+      }
+      fbdo.clear();
+    }
+
+    delay(20); // 20ms instead of 50ms gives FreeRTOS more slice resolution
   }
 }
