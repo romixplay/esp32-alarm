@@ -341,29 +341,38 @@ void loop() {
           }
         }
 
-        // Stop Trigger
-        if (doc.containsKey("stop_trigger")) {
-          double currentStop = doc["stop_trigger"].as<double>();
-          if (currentStop > lastStopTrigger) {
-            lastStopTrigger = currentStop;
-            alarmEndTime = 0; // Kill timer
-            holdTriggerActive = false; // Release hold
-            logToCloud("ALARM FORCE STOPPED.");
+          // =========================================================
+          // THE BULLETPROOF GHOST FIX (SYNC ALL TIMESTAMPS ON BOOT)
+          // =========================================================
+        if (isFirstBootSync) {
+          if (doc.containsKey("trigger_time")) lastProcessedTrigger = doc["trigger_time"].as<double>();
+          if (doc.containsKey("stop_trigger")) lastStopTrigger = doc["stop_trigger"].as<double>();
+          isFirstBootSync = false;
+          logToCloud("First boot sync complete. Ignoring historical triggers.");
+        } 
+        else {
+          // NORMAL POLLING (Only runs after the first boot sync is complete)
+          
+          // Stop Trigger
+          if (doc.containsKey("stop_trigger")) {
+            double currentStop = doc["stop_trigger"].as<double>();
+            if (currentStop > lastStopTrigger) {
+              lastStopTrigger = currentStop;
+              alarmEndTime = 0; // Kill timer
+              holdTriggerActive = false; // Release hold
+              logToCloud("ALARM FORCE STOPPED.");
+            }
           }
-        }
 
-        // Start Trigger
-        if (doc.containsKey("trigger_time")) {
-          double currentTrigger = doc["trigger_time"].as<double>();
-          if (isFirstBootSync) {
-            lastProcessedTrigger = currentTrigger; 
-            isFirstBootSync = false;
-          } 
-          else if (currentTrigger > lastProcessedTrigger) {
-            lastProcessedTrigger = currentTrigger; 
-            int duration = doc["duration"] ? doc["duration"].as<int>() : 3;
-            logToCloud("Timed alarm triggered for " + String(duration) + "s.");
-            alarmEndTime = millis() + (duration * 1000);
+          // Start Trigger
+          if (doc.containsKey("trigger_time")) {
+            double currentTrigger = doc["trigger_time"].as<double>();
+            if (currentTrigger > lastProcessedTrigger) {
+              lastProcessedTrigger = currentTrigger; 
+              int duration = doc["duration"] ? doc["duration"].as<int>() : 3;
+              logToCloud("Timed alarm triggered for " + String(duration) + "s.");
+              alarmEndTime = millis() + (duration * 1000);
+            }
           }
         }
 
