@@ -34,6 +34,10 @@ FirebaseConfig config;
 bool signupOK = false;
 
 // --- SYSTEM STATE VARIABLES ---
+double localMasterUpdate = 0;
+unsigned long localAlarmStartTime = 0;
+unsigned long localAlarmDuration = 0;
+bool isLocalAlarmActive = false;
 unsigned long lastHeartbeat = 0;
 unsigned long lastAlarmPoll = 0;
 unsigned long lastAdminPoll = 0;
@@ -282,7 +286,9 @@ void setup() {
     Serial.print(".");
     delay(300);
   }
-  
+
+  WiFi.setSleep(false);
+
   Serial.println("\nWi-Fi Connected!");
   Serial.printf("Free RAM: %d bytes\n", ESP.getFreeHeap());
   Serial.print("Network: ");
@@ -363,267 +369,196 @@ void setup() {
 }
 
 void loop() {
+  // =========================================================================
+  // ZONE 1: CRITICAL HARDWARE TASKS (Zero Latency)
+  // =========================================================================
   ArduinoOTA.handle();
 
+  // THE HARDWARE KILL-SWITCH
+  // This runs entirely independent of Wi-Fi. If the router dies, the audio still stops.
+  if (isLocalAlarmActive) {
+    if (millis() - localAlarmStartTime >= localAlarmDuration) {
+      logToCloud("Hardware Timer: Stopping audio.");
+      audioMode = 0;              // Force Silence
+      holdTriggerActive = false;  // Release any lingering holds
+      isLocalAlarmActive = false; // Disarm the kill-switch
+    }
+  }
+
+  // =========================================================================
+  // ZONE 2: NETWORK & AUDIO ROUTING
+  // =========================================================================
   if (Firebase.ready() && signupOK) {
     
-    // ---------------------------------------------------------
-    // 1. FAST HARDWARE LOGIC
-    // ---------------------------------------------------------
+    // --- FAST PRIORITY ROUTER ---
     if (!ampEnabled) {
-      // If the AMP is switched off, brutally kill all active timers and silence the synth
+      // Brutally kill all active timers and silence the synth if AMP is disabled
       alarmEndTime = 0;
       periodicEndTime = 0;
       holdTriggerActive = false;
+      isLocalAlarmActive = false; 
       audioMode = 0;
     } else {
-      bool mainAlarmActive = holdTriggerActive || (millis() < alarmEndTime);
+      bool mainAlarmActive = holdTriggerActive || isLocalAlarmActive;
       bool beepActive = false;
 
-      // Handle Periodic Beep Timer
+      // Periodic Beep Timer Logic
       if (periodicActive && (millis() - lastPeriodicTrigger > (periodicSecs * 1000))) {
         lastPeriodicTrigger = millis();
         periodicEndTime = millis() + (periodicLen * 1000);
       }
       if (millis() < periodicEndTime) beepActive = true;
 
-      // ==========================================
-      // THE STRICT PRIORITY ROUTER 
-      // ==========================================
+      // The Strict Priority Tree
       if (mainAlarmActive) {
         audioMode = 1;       // 1st Priority: Siren overrides EVERYTHING
       } 
       else if (audioMode == 3) {
-        // 2nd Priority: WAV STREAMING. 
-        // Do nothing! Let it play. The audioTask will automatically set this back to 0 when the song ends.
+        // 2nd Priority: WAV STREAMING. Let it play. audioTask sets to 0 when done.
       } 
       else if (beepActive) {
-        audioMode = 2;       // 3rd Priority: Beep plays only if Siren and WAV are quiet
+        audioMode = 2;       // 3rd Priority: Beep plays only if quiet
       } 
       else {
         audioMode = 0;       // Default: SILENCE
       }
     }
 
-    // ---------------------------------------------------------
-    // 2. ALARM POLLING
-    // ---------------------------------------------------------
-    if (millis() - lastAlarmPoll > 200 && Firebase.ready()) {
-      lastAlarmPoll = millis();
+  // =========================================================================
+  // ZONE 3: CLOUD SYNC (SMART PING)
+  // =========================================================================
+  if (millis() - lastAlarmPoll > 800) {
+    lastAlarmPoll = millis();
 
-      if (Firebase.RTDB.getJSON(&fbdo, "/alarm_state")) {
-        StaticJsonDocument<1024> doc;
-        deserializeJson(doc, fbdo.to<String>());
+    // THE PING: Fetch exactly 8 bytes of data (a single number)
+    if (Firebase.RTDB.getDouble(&fbdo, "/alarm_state/master_update_time")) {
+      double cloudMasterUpdate = fbdo.to<double>();
 
-        // ==========================================
-        // SYSTEM ADMIN COMMANDS
-        // ==========================================
-        if (doc.containsKey("force_reboot")) {
-          bool needsReboot = doc["force_reboot"].as<bool>();
-          if (needsReboot) {
-            logToCloud("Reboot command received. Clearing flag and restarting...");
-            
-            // 1. Clear the flag in the cloud so we don't Death Loop!
-            Firebase.RTDB.setBool(&fbdo, "/alarm_state/force_reboot", false);
-            
-            // 2. Wait 1 second to ensure the network packet actually sends
-            delay(1000); 
-            
-            // 3. Pull the plug
-            ESP.restart(); 
-          }
-        }
-
-        // Strict Type Parsing for Toggles
-        if (doc.containsKey("amp_enabled")) ampEnabled = doc["amp_enabled"].as<bool>();
-        if (doc.containsKey("wobble_active")) wobbleActive = doc["wobble_active"].as<bool>();
+      // If the timestamp changed OR we just booted, we fetch the heavy payload
+      if (cloudMasterUpdate > localMasterUpdate || isFirstBootSync) {
         
-        if (doc.containsKey("force_reboot") && doc["force_reboot"] == true) {
-            Firebase.RTDB.setBool(&fbdo, "/alarm_state/force_reboot", false);
-            logToCloud("Hardware Reboot Triggered.");
-            delay(1000);
-            ESP.restart();
-        }
-
-        // Settings Sync
-        if (doc.containsKey("volume")) mainVolume = constrain(doc["volume"].as<int>(), 0, 100) / 100.0;
-        if (doc.containsKey("siren_min")) sirenMinFreq = doc["siren_min"].as<int>();
-        if (doc.containsKey("siren_max")) sirenMaxFreq = doc["siren_max"].as<int>();
-        if (doc.containsKey("siren_speed")) sirenSpeed = doc["siren_speed"].as<int>();
-        if (doc.containsKey("wobble_speed")) wobbleSpeed = doc["wobble_speed"].as<int>();
-        
-        if (doc.containsKey("periodic_sec")) periodicSecs = doc["periodic_sec"].as<int>();
-        if (doc.containsKey("periodic_vol")) periodicVolume = constrain(doc["periodic_vol"].as<int>(), 0, 100) / 100.0;
-        if (doc.containsKey("periodic_freq")) periodicFreq = doc["periodic_freq"].as<int>();
-        if (doc.containsKey("periodic_len")) periodicLen = doc["periodic_len"].as<float>();
-        if (doc.containsKey("hold_trigger")) holdTriggerActive = doc["hold_trigger"].as<bool>();
-
-        // Toggle Logging with Detailed Settings
-        if (doc.containsKey("periodic_active")) {
-          bool newState = doc["periodic_active"].as<bool>();
-          if (newState != periodicActive) {
-            periodicActive = newState;
-            if (periodicActive) {
-              String msg = "Periodic Beep ON: " + String(periodicSecs) + "s interval, " + 
-                           String(periodicLen) + "s len, " + String(periodicFreq) + "Hz, " + 
-                           String((int)(periodicVolume * 100)) + "% vol";
-              logToCloud(msg);
-            } else {
-              logToCloud("Periodic Beep: DISABLED");
-            }
-          }
-        }
-
-        // ==========================================
-        // 1. FIRST BOOT SYNC (GHOST FIX + AMNESIA FIX)
-        // ==========================================
-        if (isFirstBootSync) {
-          // Sync the main alarm clock
-          if (doc.containsKey("trigger_time")) lastProcessedTrigger = doc["trigger_time"].as<double>();
-          if (doc.containsKey("stop_trigger")) lastStopTrigger = doc["stop_trigger"].as<double>();
+        if (Firebase.RTDB.getJSON(&fbdo, "/alarm_state")) {
+          localMasterUpdate = cloudMasterUpdate; // Mark as successfully fetched
           
-          // Sync the Slot system clock
-          if (doc.containsKey("slot_trigger")) lastSlotTrigger = doc["slot_trigger"].as<double>();
+          StaticJsonDocument<1024> doc;
+          deserializeJson(doc, fbdo.to<String>());
 
-          // AMNESIA FIX: Assume whatever files we have on disk match the cloud on boot
-          if (doc.containsKey("slots")) {
-             for (int i = 0; i <= 4; i++) {
-                String sName = (i == 0) ? "horn" : "slot" + String(i);
-                if (doc["slots"].containsKey(sName)) {
-                   localSlotVersions[i] = doc["slots"][sName]["version"].as<double>();
-                }
-             }
+          // --- 3A. ADMIN OVERRIDES ---
+          if (doc.containsKey("force_reboot") && doc["force_reboot"].as<bool>() == true) {
+              logToCloud("Reboot command received. Restarting...");
+              Firebase.RTDB.setBool(&fbdo, "/alarm_state/force_reboot", false); 
+              delay(1000); 
+              ESP.restart(); 
           }
 
-          isFirstBootSync = false;
-          Serial.println("First boot sync complete. Hardware is armed.");
-        }
-        else {
-          // NORMAL POLLING (Only runs after the first boot sync is complete)
+          // --- 3B. SETTINGS SYNC ---
+          if (doc.containsKey("amp_enabled")) ampEnabled = doc["amp_enabled"].as<bool>();
+          if (doc.containsKey("wobble_active")) wobbleActive = doc["wobble_active"].as<bool>();
+          if (doc.containsKey("volume")) mainVolume = constrain(doc["volume"].as<int>(), 0, 100) / 100.0;
+          if (doc.containsKey("siren_min")) sirenMinFreq = doc["siren_min"].as<int>();
+          if (doc.containsKey("siren_max")) sirenMaxFreq = doc["siren_max"].as<int>();
+          if (doc.containsKey("siren_speed")) sirenSpeed = doc["siren_speed"].as<int>();
+          if (doc.containsKey("wobble_speed")) wobbleSpeed = doc["wobble_speed"].as<int>();
           
-          // Stop Trigger
-          if (doc.containsKey("stop_trigger")) {
-            double currentStop = doc["stop_trigger"].as<double>();
-            if (currentStop > lastStopTrigger) {
-              lastStopTrigger = currentStop;
-              alarmEndTime = 0; // Kill timer
-              holdTriggerActive = false; // Release hold
-              logToCloud("ALARM FORCE STOPPED.");
+          if (doc.containsKey("periodic_sec")) periodicSecs = doc["periodic_sec"].as<int>();
+          if (doc.containsKey("periodic_vol")) periodicVolume = constrain(doc["periodic_vol"].as<int>(), 0, 100) / 100.0;
+          if (doc.containsKey("periodic_freq")) periodicFreq = doc["periodic_freq"].as<int>();
+          if (doc.containsKey("periodic_len")) periodicLen = doc["periodic_len"].as<float>();
+          if (doc.containsKey("hold_trigger")) holdTriggerActive = doc["hold_trigger"].as<bool>();
+
+          if (doc.containsKey("periodic_active")) {
+            bool newState = doc["periodic_active"].as<bool>();
+            if (newState != periodicActive) {
+              periodicActive = newState;
+              if (periodicActive) logToCloud("Periodic Beep ON.");
+              else logToCloud("Periodic Beep: DISABLED");
             }
           }
 
-          // Start Trigger
-          if (doc.containsKey("trigger_time")) {
-            double currentTrigger = doc["trigger_time"].as<double>();
-            if (currentTrigger > lastProcessedTrigger) {
-              lastProcessedTrigger = currentTrigger; 
-              int duration = doc["duration"] ? doc["duration"].as<int>() : 3;
-              logToCloud("Timed alarm triggered for " + String(duration) + "s.");
-              alarmEndTime = millis() + (duration * 1000);
-            }
-          }
-        }
-
-        // ==========================================
-        // SMART SLOT ROUTER (CACHE + PLAY)
-        // ==========================================
-        if (doc.containsKey("slot_trigger") && doc.containsKey("active_slot")) {
-          double trigger = doc["slot_trigger"].as<double>();
-          
-          // BOOT HORN FIX: Only process if we are past the first sync
+          // --- 3C. THE TIME MACHINE (FIRST BOOT LOGIC) ---
           if (isFirstBootSync) {
-            lastSlotTrigger = trigger; // Sync the clock without playing
-            // ... (rest of your existing first boot sync logic) ...
-          } 
-          else if (trigger > lastSlotTrigger) {
-            lastSlotTrigger = trigger;
-            int slotID = doc["active_slot"].as<int>();
-            String slotName = (slotID == 0) ? "horn" : "slot" + String(slotID);
-            String path = "/" + slotName + ".wav";
-            
-            if (doc["slots"].containsKey(slotName)) {
-               double cloudVersion = doc["slots"][slotName]["version"].as<double>();
+            if (doc.containsKey("trigger_time")) lastProcessedTrigger = doc["trigger_time"].as<double>();
+            if (doc.containsKey("stop_trigger")) lastStopTrigger = doc["stop_trigger"].as<double>();
+            if (doc.containsKey("slot_trigger")) lastSlotTrigger = doc["slot_trigger"].as<double>();
 
-               // --- DELETE LOGIC ---
-               if (cloudVersion == -1) {
-                  LittleFS.remove(path);
-                  localSlotVersions[slotID] = -1;
-                  logToCloud("Slot " + String(slotID) + " deleted from disk.");
-                  return; // Stop here, don't try to play a deleted file
-               }
-
-               // --- SYNC LOGIC ---
-               if (cloudVersion > localSlotVersions[slotID] || !LittleFS.exists(path)) {
-                  String url = doc["slots"][slotName]["url"].as<String>();
-                  if (downloadToSlot(url, path)) {
-                     localSlotVersions[slotID] = cloudVersion;
+            if (doc.containsKey("slots")) {
+                for (int i = 0; i <= 4; i++) {
+                  String sName = (i == 0) ? "horn" : "slot" + String(i);
+                  if (doc["slots"].containsKey(sName)) {
+                      localSlotVersions[i] = doc["slots"][sName]["version"].as<double>();
                   }
-               }
+                }
             }
-            
-            // --- INSTANT PLAYBACK ---
-            if (LittleFS.exists(path)) {
-                currentWavPath = path;
-                audioMode = 3; 
+            isFirstBootSync = false;
+            Serial.println("First boot sync complete. Hardware is armed.");
+          } 
+          
+          // --- 3D. LIVE ACTION ROUTER ---
+          else {
+            // 1. Force Stop Trigger
+            if (doc.containsKey("stop_trigger")) {
+              double currentStop = doc["stop_trigger"].as<double>();
+              if (currentStop > lastStopTrigger) {
+                lastStopTrigger = currentStop;
+                isLocalAlarmActive = false; 
+                holdTriggerActive = false;  
+                audioMode = 0;              
+                logToCloud("ALARM FORCE STOPPED.");
+              }
+            }
+
+            // 2. Main Siren Trigger
+            if (doc.containsKey("trigger_time")) {
+              double currentTrigger = doc["trigger_time"].as<double>();
+              if (currentTrigger > lastProcessedTrigger) {
+                lastProcessedTrigger = currentTrigger; 
+                int durationSecs = doc["duration"] ? doc["duration"].as<int>() : 3;
+                logToCloud("Timed alarm triggered for " + String(durationSecs) + "s.");
+                
+                localAlarmDuration = durationSecs * 1000;
+                localAlarmStartTime = millis();
+                isLocalAlarmActive = true;
+              }
+            }
+
+            // 3. Smart Slot Trigger
+            if (doc.containsKey("slot_trigger") && doc.containsKey("active_slot")) {
+              double currentSlotTrigger = doc["slot_trigger"].as<double>();
+              if (currentSlotTrigger > lastSlotTrigger) {
+                lastSlotTrigger = currentSlotTrigger;
+                
+                int slotID = doc["active_slot"].as<int>();
+                String slotName = (slotID == 0) ? "horn" : "slot" + String(slotID);
+                String path = "/" + slotName + ".wav";
+                
+                if (doc["slots"].containsKey(slotName)) {
+                    double cloudVersion = doc["slots"][slotName]["version"].as<double>();
+
+                    if (cloudVersion == -1) {
+                      LittleFS.remove(path);
+                      localSlotVersions[slotID] = -1;
+                      logToCloud("Slot " + String(slotID) + " deleted from disk.");
+                    }
+                    else if (cloudVersion > localSlotVersions[slotID] || !LittleFS.exists(path)) {
+                      String url = doc["slots"][slotName]["url"].as<String>();
+                      if (downloadToSlot(url, path)) {
+                          localSlotVersions[slotID] = cloudVersion;
+                      }
+                    }
+                }
+                
+                if (LittleFS.exists(path)) {
+                    currentWavPath = path;
+                    audioMode = 3; 
+                }
+              }
             }
           }
         }
-
       }
     }
     
-
-    // ---------------------------------------------------------
-    // 3. SLOW ADMIN POLLING (Every 10 Seconds)
-    // ---------------------------------------------------------
-    if (millis() - lastAdminPoll > 10000) {
-      lastAdminPoll = millis();
-      
-      // 1. Send Heartbeat Ping
-      Firebase.RTDB.setTimestamp(&fbdo, "/system/last_ping");
-      
-      // 2. Send Uptime Tracker
-      Firebase.RTDB.setInt(&fbdo, "/system/uptime", millis() / 1000); 
-
-      // 3. Check for GitHub OTA Updates
-      if (Firebase.RTDB.getString(&fbdo, "/system/ota_url")) {
-        String ota_url = fbdo.to<String>();
-        if (ota_url.length() > 10) {
-          logToCloud("OTA Triggered! Freeing memory...");
-          
-          // THE FIX: Physically delete the node from the database instead of writing an empty string.
-          // We wrap it in a while-loop so the ESP32 refuses to start the download until the database confirms the URL is gone.
-          while (!Firebase.RTDB.deleteNode(&fbdo, "/system/ota_url")) {
-             Serial.println("Failed to clear OTA trigger. Retrying...");
-             delay(500);
-          }
-          
-          delay(1000); 
-          
-          // Brutally kill the audio engine to free up RAM for the download
-          audioMode = 0;
-          digitalWrite(PIN_AMP_SD, LOW);
-          i2s_driver_uninstall(I2S_NUM_0); 
-          delay(1000); 
-          
-          // Start the Secure Download
-          WiFiClientSecure client;
-          client.setInsecure(); // Skip certificate validation for the raw GitHub link
-          client.setTimeout(15000); 
-          httpUpdate.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-          
-          t_httpUpdate_return ret = httpUpdate.update(client, ota_url);
-          
-          if(ret == HTTP_UPDATE_OK) { Serial.println("OTA SUCCESS!"); } 
-          else { Serial.println("OTA FAILED: " + httpUpdate.getLastErrorString()); }
-          
-          // Always restart after an update attempt
-          ESP.restart(); 
-        }
-      }
-    }
-
-    // Give FreeRTOS breathing room to handle the Wi-Fi background tasks
-    delay(50); 
+    // Clear the memory buffer regardless of whether we downloaded JSON or just the Ping
+    fbdo.clear(); 
   }
 }

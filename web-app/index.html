@@ -50,7 +50,6 @@
         .terminal { background-color: var(--terminal-bg); color: var(--terminal-text); padding: 1rem; font-size: 0.85rem; height: 150px; overflow-y: auto; border: 2px solid var(--text); margin-bottom: 15px; }
         .version-text { font-size: 0.9rem; font-weight: bold; color: #444; text-align: center; margin-top: 15px; }
         
-        /* New Slot System Styling */
         .slot-row.priority { display: flex; gap: 10px; margin-bottom: 15px; align-items: center; }
         .btn-play-priority { flex-grow: 1; background: var(--accent); color: white; font-weight: bold; height: 50px; border: 2px solid black; cursor: pointer; font-family: monospace; }
         .btn-icon-label { background: #eee; border: 2px solid #000; padding: 10px 15px; cursor: pointer; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; height: 26px; }
@@ -212,15 +211,9 @@
             
             <div class="version-text">
                 SYSTEM UPTIME: <span id="sys-uptime">0h 0m</span><br><br>
-                <span id="fw-version">FW: 260401004322</span>
+                <span id="fw-version">FW: 260401012901</span>
             </div>
         </div>
-    </div>
-
-    <div style="text-align: center; font-family: monospace; font-size: 0.75rem; color: #888; margin-top: 20px; margin-bottom: 20px;">
-        DESIGNED & ENGINEERED BY<br>
-        <span style="color: var(--text); font-weight: bold; font-size: 0.9rem;">ROMAN GODISH</span><br>
-        HFA • 2026
     </div>
 
     <script>
@@ -253,20 +246,18 @@
 
             try {
                 try {
-                    await db.ref("alarm_state").update({ auth_pin: sessionPasscode, last_ui_login: Date.now() });
+                    await db.ref("alarm_state").update({ auth_pin: sessionPasscode, last_ui_login: Date.now(), master_update_time: Date.now() });
                     validPinPayload = sessionPasscode; 
                 } catch (stringError) {
                     const pinNum = Number(sessionPasscode);
                     if (isNaN(pinNum)) throw stringError; 
-                    
-                    await db.ref("alarm_state").update({ auth_pin: pinNum, last_ui_login: Date.now() });
+                    await db.ref("alarm_state").update({ auth_pin: pinNum, last_ui_login: Date.now(), master_update_time: Date.now() });
                     validPinPayload = pinNum; 
                 }
                 
                 localStorage.setItem("system_pin", sessionPasscode); 
                 document.getElementById('auth-screen').style.display = 'none';
                 document.getElementById('main-app').style.display = 'block';
-                
                 syncUI(); 
                 setupSystemMonitors();
             } catch (error) {
@@ -280,17 +271,18 @@
         async function sendCommand(action, payload = {}) {
             try {
                 payload.auth_pin = validPinPayload; 
+                payload.master_update_time = Date.now(); // THE SMART PING KEY
 
                 if (action === "trigger_alarm") {
-                    await db.ref("alarm_state").update({ trigger_time: Date.now(), duration: payload.duration, hold_trigger: false, auth_pin: validPinPayload });
+                    await db.ref("alarm_state").update({ trigger_time: Date.now(), duration: payload.duration, hold_trigger: false, auth_pin: validPinPayload, master_update_time: Date.now() });
                 } else if (action === "hold_alarm") {
-                    await db.ref("alarm_state").update({ hold_trigger: payload.active, auth_pin: validPinPayload });
+                    await db.ref("alarm_state").update({ hold_trigger: payload.active, auth_pin: validPinPayload, master_update_time: Date.now() });
                 } else if (action === "stop_alarm") {
-                    await db.ref("alarm_state").update({ stop_trigger: Date.now(), hold_trigger: false, auth_pin: validPinPayload });
+                    await db.ref("alarm_state").update({ stop_trigger: Date.now(), hold_trigger: false, auth_pin: validPinPayload, master_update_time: Date.now() });
                 } else if (action === "update_settings") {
                     await db.ref("alarm_state").update(payload);
                 } else if (action === "reboot_esp") {
-                    await db.ref("alarm_state").update({ force_reboot: true, auth_pin: validPinPayload });
+                    await db.ref("alarm_state").update({ force_reboot: true, auth_pin: validPinPayload, master_update_time: Date.now() });
                 } else if (action === "sync_firmware") {
                     await db.ref("system").update({ ota_url: payload.url, auth_pin: validPinPayload });
                 }
@@ -323,10 +315,7 @@
             });
         }
 
-        function logout() {
-            localStorage.removeItem("system_pin");
-            location.reload();
-        }
+        function logout() { localStorage.removeItem("system_pin"); location.reload(); }
 
         function updateLabels() {
             document.getElementById('vol-val').innerText = document.getElementById('volume').value + '%';
@@ -349,7 +338,6 @@
 
         async function saveSettings() {
             if (!validPinPayload) return;
-            
             updatePeriodicTitle();
             await sendCommand("update_settings", {
                 volume: parseInt(document.getElementById('volume').value), siren_min: parseInt(document.getElementById('siren-min').value),
@@ -370,15 +358,12 @@
             if(url) await sendCommand("sync_firmware", { url });
         }
 
-        // ==========================================
-        // SMART SLOT AUDIO MANAGER
-        // ==========================================
-
         async function triggerSlot(slotID) {
             await db.ref("alarm_state").update({ 
                 active_slot: slotID, 
                 slot_trigger: Date.now(), 
-                auth_pin: validPinPayload 
+                auth_pin: validPinPayload,
+                master_update_time: Date.now()
             });
         }
 
@@ -386,9 +371,10 @@
             if (!confirm(`Clear audio from Slot ${slotID}?`)) return;
             const slotName = slotID === 0 ? "horn" : `slot${slotID}`;
             await db.ref(`alarm_state/slots/${slotName}`).update({
-                version: -1, // Tells ESP32 to delete the file natively
+                version: -1,
                 auth_pin: validPinPayload
             });
+            await db.ref("alarm_state").update({ master_update_time: Date.now() });
             document.getElementById('upload-status').innerText = `Slot ${slotID} cleared.`;
             document.getElementById('upload-status').style.color = "var(--accent)";
         }
@@ -404,19 +390,16 @@
             status.style.color = "orange";
 
             try {
-                // 1. Read & Decode
                 const arrayBuffer = await file.arrayBuffer();
                 const audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 const decodedAudio = await audioContext.decodeAudioData(arrayBuffer);
 
-                // 2. Protect ESP32 Memory
                 if (decodedAudio.duration > 10.5) {
                     status.innerText = "Error: Audio exceeds 10s limit.";
                     status.style.color = "red";
                     return;
                 }
 
-                // 3. Downsample to 8000Hz Mono
                 const offlineCtx = new OfflineAudioContext(1, decodedAudio.duration * 8000, 8000);
                 const source = offlineCtx.createBufferSource();
                 source.buffer = decodedAudio;
@@ -425,19 +408,18 @@
                 const resampledAudio = await offlineCtx.startRendering();
                 const wavBlob = audioBufferToWav(resampledAudio);
 
-                // 4. Upload to Cloud
                 status.innerText = `Uploading Slot ${slotID} to Cloud...`;
                 const slotName = (slotID === 0) ? "horn" : `slot${slotID}`;
                 const storageRef = storage.ref(`audio/${slotName}.wav`);
                 await storageRef.put(wavBlob);
                 const downloadURL = await storageRef.getDownloadURL();
 
-                // 5. Update Database Version (Triggers ESP32 Download)
                 await db.ref(`alarm_state/slots/${slotName}`).update({
                     url: downloadURL,
                     version: Date.now(),
                     auth_pin: validPinPayload
                 });
+                await db.ref("alarm_state").update({ master_update_time: Date.now() });
 
                 status.innerText = `Slot ${slotID} Synced successfully!`;
                 status.style.color = "green";
@@ -448,20 +430,16 @@
             }
         }
 
-        // --- WAV CONVERTER UTILITY ---
         function audioBufferToWav(buffer) {
             const numChannels = buffer.numberOfChannels;
             const sampleRate = buffer.sampleRate;
             const format = 1; 
             const bitDepth = 16;
-            
             const result = new Float32Array(buffer.length);
             buffer.copyFromChannel(result, 0);
-            
             const bufferLength = result.length * 2 + 44;
             const wavBuffer = new ArrayBuffer(bufferLength);
             const view = new DataView(wavBuffer);
-            
             const writeString = (view, offset, string) => { for (let i = 0; i < string.length; i++) view.setUint8(offset + i, string.charCodeAt(i)); };
             
             writeString(view, 0, 'RIFF');
@@ -486,10 +464,9 @@
             return new Blob([wavBuffer], { type: 'audio/wav' });
         }
 
-        // --- DYNAMIC VOICE RECORDER ---
         let mediaRecorder;
         let audioChunks = [];
-        let currentRecordSlot = null; // Tracks which button is held down
+        let currentRecordSlot = null;
 
         async function startRecording(slotID) {
             try {
@@ -497,18 +474,13 @@
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 mediaRecorder = new MediaRecorder(stream);
                 audioChunks = [];
-
-                mediaRecorder.ondataavailable = event => {
-                    audioChunks.push(event.data);
-                };
-
+                mediaRecorder.ondataavailable = event => { audioChunks.push(event.data); };
                 mediaRecorder.onstop = async () => {
                     if (audioChunks.length > 0 && currentRecordSlot !== null) {
                         const audioBlob = new Blob(audioChunks);
                         convertAndUpload(audioBlob, currentRecordSlot);
                     }
                 };
-
                 mediaRecorder.start();
                 document.getElementById('upload-status').innerText = `🔴 Recording to Slot ${slotID} (Release to save)...`;
                 document.getElementById('upload-status').style.color = "var(--accent)";
@@ -518,13 +490,8 @@
             }
         }
 
-        function stopRecording() {
-            if (mediaRecorder && mediaRecorder.state !== "inactive") {
-                mediaRecorder.stop();
-            }
-        }
+        function stopRecording() { if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop(); }
 
-        // --- SYSTEM MONITORS ---
         function setupSystemMonitors() {
             let logHistory = [];
             db.ref('system/latest_log').on('value', (snapshot) => {
@@ -536,7 +503,6 @@
                     logBox.scrollTop = logBox.scrollHeight; 
                 }
             });
-
             const statusBadge = document.getElementById('status-indicator');
             db.ref('system/last_ping').on('value', (snapshot) => {
                 const lastPing = snapshot.val();
@@ -550,7 +516,6 @@
                     }
                 }
             });
-
             db.ref('system/uptime').on('value', (snapshot) => {
                 const upSecs = snapshot.val();
                 if (upSecs) {
