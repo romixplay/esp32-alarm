@@ -313,11 +313,14 @@ void setup() {
   // =================================================================
   config.database_url = DATABASE_URL;
   config.signer.tokens.legacy_token = DATABASE_SECRET; 
+
+  // TCP & Network Timeout Adjustments
   config.timeout.socketConnection = 10 * 1000;
+  config.timeout.serverResponse = 10 * 1000;
 
   // --- THE SSL SHOCK ABSORBERS ---
-  fbdo.setBSSLBufferSize(4096, 1024); // Force allocation of dedicated SSL memory
-  fbdo.setResponseSize(1024);         // Prevent memory overflow from big database reads
+  fbdo.setBSSLBufferSize(4096, 2048); // Force allocation of dedicated SSL memory
+  fbdo.setResponseSize(2048);         // Prevent memory overflow from big database reads
   // ------------------------------------------------
 
   Firebase.begin(&config, &auth);
@@ -405,7 +408,7 @@ void loop() {
     // ---------------------------------------------------------
     // 2. ALARM POLLING
     // ---------------------------------------------------------
-    if (millis() - lastAlarmPoll > 200) {
+    if (millis() - lastAlarmPoll > 200 && Firebase.ready()) {
       lastAlarmPoll = millis();
 
       if (Firebase.RTDB.getJSON(&fbdo, "/alarm_state")) {
