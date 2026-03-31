@@ -409,7 +409,7 @@ void loop() {
     // ---------------------------------------------------------
     // 2. ALARM POLLING (Every 2.5 Seconds)
     // ---------------------------------------------------------
-    if (millis() - lastAlarmPoll > 2500) {
+    if (millis() - lastAlarmPoll > 500) {
       lastAlarmPoll = millis();
 
       if (Firebase.RTDB.getJSON(&fbdo, "/alarm_state")) {
