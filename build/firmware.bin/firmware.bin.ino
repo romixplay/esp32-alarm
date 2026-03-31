@@ -412,8 +412,15 @@ void loop() {
         String ota_url = fbdo.to<String>();
         if (ota_url.length() > 10) {
           logToCloud("OTA Triggered! Freeing memory...");
-          Firebase.RTDB.setString(&fbdo, "/system/ota_url", ""); // Clear the trigger
-          delay(3000); 
+          
+          // THE FIX: Physically delete the node from the database instead of writing an empty string.
+          // We wrap it in a while-loop so the ESP32 refuses to start the download until the database confirms the URL is gone.
+          while (!Firebase.RTDB.deleteNode(&fbdo, "/system/ota_url")) {
+             Serial.println("Failed to clear OTA trigger. Retrying...");
+             delay(500);
+          }
+          
+          delay(1000); 
           
           // Brutally kill the audio engine to free up RAM for the download
           audioMode = 0;
