@@ -21,10 +21,15 @@
         #auth-screen button { padding: 10px 20px; font-family: monospace; font-size: 1rem; cursor: pointer; background: white; color: black; border: none; font-weight: bold; }
         
         .container { max-width: 500px; width: 100%; display: none; }
-        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid var(--text); padding-bottom: 10px; margin-bottom: 20px; }
-        .header h1 { margin: 0; font-size: 1.2rem; letter-spacing: 2px; }
         
-        .status-badge { padding: 5px 10px; font-weight: bold; border: 2px solid #000; font-size: 0.9rem; }
+        /* NEW HEADER LAYOUT */
+        .header-container { display: flex; flex-direction: column; width: 100%; border-bottom: 3px solid var(--text); padding-bottom: 15px; margin-bottom: 20px; }
+        .header-title { font-size: 1.4rem; letter-spacing: 2px; font-weight: bold; text-align: center; margin-bottom: 15px; }
+        .header-row { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+        .header-left { display: flex; gap: 10px; align-items: center; }
+        .header-right { display: flex; align-items: center; }
+        
+        .status-badge { padding: 5px 10px; font-weight: bold; border: 2px solid #000; font-size: 0.8rem; }
         .bg-grey { background-color: #ccc; color: #000; }
         .bg-green { background-color: #0f0; color: #000; }
         .bg-red { background-color: #f00; color: #fff; }
@@ -35,18 +40,21 @@
         input[type="range"] { width: 100%; cursor: pointer; margin-bottom: 10px; }
         
         .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
-        .btn-outline { background: transparent; border: 2px solid var(--accent); color: var(--accent); padding: 10px 5px; font-family: monospace; font-weight: bold; font-size: 0.8rem; cursor: pointer; transition: 0.2s; }
+        .btn-outline { background: transparent; border: 2px solid var(--accent); color: var(--accent); padding: 10px 2px; font-family: monospace; font-weight: bold; font-size: 0.75rem; cursor: pointer; transition: 0.2s; text-align: center; }
         .btn-outline:active { background: var(--accent); color: white; }
         .btn-solid { background: #000; color: #fff; border: 2px solid #000; padding: 15px; font-family: monospace; font-weight: bold; width: 100%; cursor: pointer; text-align: center; }
         .btn-solid:active { background: #333; }
+        
+        .btn-magic { background: #fff; border: 2px solid #000; color: #000; font-weight: bold; font-family: monospace; padding: 5px 10px; cursor: pointer; font-size: 0.8rem;}
+        .btn-magic:active { background: #000; color: #fff; }
 
-        .switch-container { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; font-weight: bold; text-transform: uppercase; }
-        .switch { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
+        .switch-container { display: flex; align-items: center; gap: 10px; font-weight: bold; text-transform: uppercase; font-size: 0.8rem; }
+        .switch { position: relative; display: inline-block; width: 40px; height: 22px; flex-shrink: 0; }
         .switch input { opacity: 0; width: 0; height: 0; }
-        .slider-toggle { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #555; transition: .3s; border-radius: 24px; border: 2px solid #000; }
-        .slider-toggle:before { position: absolute; content: ""; height: 16px; width: 16px; left: 2px; bottom: 2px; background-color: white; transition: .3s; border-radius: 50%; }
+        .slider-toggle { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #555; transition: .3s; border-radius: 22px; border: 2px solid #000; }
+        .slider-toggle:before { position: absolute; content: ""; height: 14px; width: 14px; left: 2px; bottom: 2px; background-color: white; transition: .3s; border-radius: 50%; }
         input:checked + .slider-toggle { background-color: #0f0; }
-        input:checked + .slider-toggle:before { transform: translateX(20px); }
+        input:checked + .slider-toggle:before { transform: translateX(18px); }
 
         details { padding: 10px; background: #fafafa; border: 1px dashed var(--text); margin-top: 15px; }
         summary { font-weight: bold; cursor: pointer; outline: none; text-transform: uppercase; }
@@ -64,14 +72,18 @@
 
         .slot-controls { display: flex; justify-content: space-between; gap: 5px; flex-grow: 1; align-items: stretch; }
         .btn-sm { 
-            flex: 1 1 0; /* Mathematical equal distribution */
+            flex: 1 1 0; 
             height: 32px; box-sizing: border-box; margin: 0; padding: 0;
             display: flex; align-items: center; justify-content: center; 
             font-size: 0.65rem; background: #333; color: white; border: none; cursor: pointer; font-family: monospace; font-weight: bold; 
         }
         .btn-sm.mic-btn { background: #555; }
         .btn-sm.del-btn { background: #a00; }
+        .btn-sm.play-btn { background: #0055ff; }
         .btn-sm:active { opacity: 0.7; }
+        
+        /* The CSS trick to fix the UPLOAD label alignment */
+        .btn-sm-label { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; cursor: pointer; }
         
         .icon-btn { cursor: pointer; font-size: 1rem; background: #eee; border: 1px solid #ccc; padding: 2px 5px; border-radius: 3px; margin-left: 3px; }
         
@@ -89,9 +101,21 @@
     </div>
 
     <div class="container" id="main-app">
-        <div class="header">
-            <h1>UNTITLED~CAFE // SAFE</h1>
-            <span id="status-indicator" class="status-badge bg-grey">CONNECTING</span>
+        
+        <div class="header-container">
+            <div class="header-title">UNTITLED~CAFE // SAFE</div>
+            <div class="header-row">
+                <div class="header-left">
+                    <button class="btn-magic" onclick="magicRefresh()">↻ REFRESH</button>
+                    <div class="switch-container">
+                        <label class="switch" title="HARDWARE AMP POWER"><input type="checkbox" id="amp-toggle" checked onchange="saveSettings()"><span class="slider-toggle"></span></label>
+                        <span>AMP</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <span id="status-indicator" class="status-badge bg-grey">CONNECTING</span>
+                </div>
+            </div>
         </div>
 
         <div class="card">
@@ -107,15 +131,13 @@
                 <button class="btn-solid" style="background: var(--accent); border-color: var(--accent);" onclick="stopAlarm()">STOP</button>
             </div>
 
-            <hr style="border: 1px dashed var(--text); margin: 20px 0;">
-            
-            <label>SIREN VOLUME: <span id="vol-val">50%</span></label>
-            <input type="range" id="volume" min="0" max="100" value="50" onchange="saveSettings()">
-
             <details>
                 <summary>ADVANCED SIREN SETTINGS</summary>
                 <div style="margin-top: 15px;">
-                    <label>SIREN MIN FREQUENCY: <span id="smin-val">800Hz</span></label>
+                    <label>SIREN VOLUME: <span id="vol-val">50%</span></label>
+                    <input type="range" id="volume" min="0" max="100" value="50" onchange="saveSettings()">
+
+                    <label style="margin-top: 15px;">SIREN MIN FREQUENCY: <span id="smin-val">800Hz</span></label>
                     <input type="range" id="siren-min" min="300" max="2500" step="50" value="800" onchange="saveSettings()">
                     
                     <label style="margin-top: 10px;">SIREN MAX FREQUENCY: <span id="smax-val">1600Hz</span></label>
@@ -147,15 +169,13 @@
                 <div class="slot-card" style="grid-column: 1 / -1; border-color: var(--accent); border-width: 3px;">
                     <h4 style="color: var(--accent); font-size: 1rem;">
                         <span id="name-slot0">JAMAICAN HORN (SLOT 0)</span> 
-                        <div>
-                            <span class="icon-btn" onclick="previewAudio(0)" title="Preview on Device">🔊</span>
-                            <span class="icon-btn" onclick="renameSlot(0)" title="Rename Slot">✏️</span>
-                        </div>
+                        <span class="icon-btn" onclick="renameSlot(0)" title="Rename Slot">✏️</span>
                     </h4>
                     <button id="btn-play-0" onclick="triggerSlot(0)" class="btn-main-play" style="height: 50px; background: var(--accent); color: white; font-size: 1.1rem;">PLAY</button>
                     <div class="slot-controls">
-                        <label class="btn-sm">UPLOAD<input type="file" hidden accept="audio/*" onchange="uploadToSlot(event, 0)"></label>
-                        <button onmousedown="startRecording(0)" onmouseup="stopRecording()" ontouchstart="startRecording(0)" ontouchend="stopRecording()" class="btn-sm mic-btn">RECORD</button>
+                        <label class="btn-sm"><div class="btn-sm-label">UPLOAD NEW<input type="file" hidden accept="audio/mp3, audio/wav, audio/m4a, audio/x-m4a, audio/aac" onchange="uploadToSlot(event, 0)"></div></label>
+                        <button onmousedown="startRecording(0)" onmouseup="stopRecording()" ontouchstart="startRecording(0)" ontouchend="stopRecording()" class="btn-sm mic-btn">HOLD&RECORD</button>
+                        <button onclick="previewAudio(0)" class="btn-sm play-btn">PRE-LISTEN</button>
                         <button onclick="deleteSlot(0)" class="btn-sm del-btn">DELETE</button>
                     </div>
                 </div>
@@ -166,16 +186,14 @@
                             <div class="slot-card">
                                 <h4>
                                     <span id="name-slot${i}">SLOT ${i}</span> 
-                                    <div>
-                                        <span class="icon-btn" onclick="previewAudio(${i})" title="Preview on Device">🔊</span>
-                                        <span class="icon-btn" onclick="renameSlot(${i})" title="Rename Slot">✏️</span>
-                                    </div>
+                                    <span class="icon-btn" onclick="renameSlot(${i})" title="Rename Slot">✏️</span>
                                 </h4>
                                 <button id="btn-play-${i}" onclick="triggerSlot(${i})" class="btn-main-play">PLAY</button>
                                 <div class="slot-controls">
-                                    <label class="btn-sm">UPLOAD<input type="file" hidden accept="audio/*" onchange="uploadToSlot(event, ${i})"></label>
-                                    <button onmousedown="startRecording(${i})" onmouseup="stopRecording()" ontouchstart="startRecording(${i})" ontouchend="stopRecording()" class="btn-sm mic-btn">RECORD</button>
-                                    <button onclick="deleteSlot(${i})" class="btn-sm del-btn">DELETE</button>
+                                    <label class="btn-sm" title="UPLOAD NEW"><div class="btn-sm-label" style="font-size: 1.1rem;">📁<input type="file" hidden accept="audio/mp3, audio/wav, audio/m4a, audio/x-m4a, audio/aac" onchange="uploadToSlot(event, ${i})"></div></label>
+                                    <button onmousedown="startRecording(${i})" onmouseup="stopRecording()" ontouchstart="startRecording(${i})" ontouchend="stopRecording()" class="btn-sm mic-btn" style="font-size: 1.1rem;" title="HOLD TO RECORD">🎙️</button>
+                                    <button onclick="previewAudio(${i})" class="btn-sm play-btn" style="font-size: 1.1rem;" title="PRE-LISTEN">🔊</button>
+                                    <button onclick="deleteSlot(${i})" class="btn-sm del-btn" style="font-size: 1.1rem;" title="DELETE">🗑️</button>
                                 </div>
                             </div>
                         `);
@@ -210,24 +228,21 @@
         </div>
 
         <div class="card">
-            <label style="margin-bottom: 15px;">SYSTEM SETTINGS & LOGS</label>
-            
-            <div class="switch-container" style="justify-content: space-between;">
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <label class="switch"><input type="checkbox" id="amp-toggle" checked onchange="saveSettings()"><span class="slider-toggle"></span></label>
-                    <span>AMP HARDWARE POWER</span>
-                </div>
-                <button class="btn-outline" style="padding: 5px 10px; font-size: 0.8rem; border-color: #000; color: #000;" onclick="rebootESP()">REBOOT ESP32</button>
-            </div>
-
+            <label style="margin-bottom: 15px;">SYSTEM LOGS</label>
             <div class="terminal" id="live-log">Loading system logs...</div>
             <button class="btn-outline" style="width: 100%; margin-bottom: 10px;" onclick="updateFirmware()">PULL LATEST GITHUB BUILD (OTA)</button>
             <button class="btn-outline" style="width: 100%; border-color: #000; color: #000;" onclick="logout()">LOG OUT / CLEAR CACHE</button>
             
             <div class="version-text">
                 SYSTEM UPTIME: <span id="sys-uptime">0h 0m</span><br><br>
-                <span id="fw-version">FW: 260401203556</span>
+                <span id="fw-version">FW: 260401212454</span>
             </div>
+        </div>
+        
+        <div style="text-align: center; font-family: monospace; font-size: 0.75rem; color: #888; margin-top: 20px; margin-bottom: 20px;">
+            DESIGNED & ENGINEERED BY<br>
+            <span style="color: var(--text); font-weight: bold; font-size: 0.9rem;">ROMAN GODISH</span><br>
+            HFA • 2026
         </div>
     </div>
 
@@ -252,8 +267,6 @@
             }
         };
 
-        // --- FIXED: SECURE LOGGING ---
-        // This function now uses your auth_pin, preventing the 'permission_denied' error.
         function logToTerminal(msg) {
             const d = new Date();
             const timeStr = d.toTimeString().split(' ')[0];
@@ -261,6 +274,12 @@
                 latest_log: `[WEB - ${timeStr}] ${msg}`,
                 auth_pin: validPinPayload
             }).catch(err => console.error("Log write failed:", err));
+        }
+
+        async function magicRefresh() {
+            // Send a hard stop command to clear all tasks before refreshing
+            await sendCommand("stop_alarm");
+            location.reload(true);
         }
 
         async function login() {
@@ -406,13 +425,12 @@
             if(url) await sendCommand("sync_firmware", { url });
         }
 
-        // --- FIXED: SECURE SLOT MANAGEMENT ---
+        // --- SLOT MANAGEMENT ---
         async function renameSlot(slotID) {
             let currentName = document.getElementById(`name-slot${slotID}`).innerText;
             let newName = prompt("Enter new name (max 15 chars):", currentName);
             if(newName && newName.trim() !== "") {
                 let slotKey = (slotID === 0) ? "horn" : `slot${slotID}`;
-                // Batch update ensures the auth_pin is checked successfully
                 await db.ref("alarm_state").update({
                     [`slot_names/${slotKey}`]: newName.substring(0, 15).toUpperCase(),
                     master_update_time: Date.now(),
@@ -445,13 +463,13 @@
             await db.ref("alarm_state").update({ 
                 active_slot: slotID, slot_trigger: Date.now(), auth_pin: validPinPayload, master_update_time: Date.now()
             });
+            logToTerminal(`Triggered Playback on Slot ${slotID}.`);
         }
 
         async function deleteSlot(slotID) {
             if (!confirm(`Clear audio from Slot ${slotID}?`)) return;
             const slotName = slotID === 0 ? "horn" : `slot${slotID}`;
             
-            // Fixed: Included auth_pin in the same transaction
             await db.ref("alarm_state").update({
                 [`slots/${slotName}/version`]: -1,
                 master_update_time: Date.now(),
@@ -470,7 +488,7 @@
 
         async function convertAndUpload(file, slotID) {
             const status = document.getElementById('upload-status');
-            status.innerText = `Syncing Slot ${slotID}...`;
+            status.innerText = `Processing Audio for Slot ${slotID}...`;
             status.style.color = "orange";
 
             try {
@@ -482,9 +500,18 @@
                     status.innerText = "Error: Audio exceeds 10s limit."; status.style.color = "red"; return;
                 }
 
+                // VOLUME GAIN BOOSTER: Amplifies audio by 250% before sending to ESP32
                 const offlineCtx = new OfflineAudioContext(1, decodedAudio.duration * 8000, 8000);
                 const source = offlineCtx.createBufferSource();
-                source.buffer = decodedAudio; source.connect(offlineCtx.destination); source.start();
+                source.buffer = decodedAudio; 
+                
+                const gainNode = offlineCtx.createGain();
+                gainNode.gain.value = 2.5; 
+                
+                source.connect(gainNode); 
+                gainNode.connect(offlineCtx.destination); 
+                source.start();
+                
                 const resampledAudio = await offlineCtx.startRendering();
                 const wavBlob = audioBufferToWav(resampledAudio);
 
@@ -494,7 +521,6 @@
                 await storageRef.put(wavBlob);
                 const downloadURL = await storageRef.getDownloadURL();
 
-                // Fixed: Included auth_pin directly into the update
                 await db.ref("alarm_state").update({
                     [`slots/${slotName}/url`]: downloadURL,
                     [`slots/${slotName}/version`]: Date.now(),
@@ -506,6 +532,7 @@
                 logToTerminal(`Uploaded new audio to Slot ${slotID}.`);
             } catch (e) {
                 status.innerText = "Upload failed."; status.style.color = "red"; console.error(e);
+                logToTerminal(`Upload failed for Slot ${slotID}. Check console.`);
             }
         }
 
@@ -530,7 +557,7 @@
             return new Blob([wavBuffer], { type: 'audio/wav' });
         }
 
-        let mediaRecorder; let audioChunks = []; let currentRecordSlot = null;
+        let mediaRecorder; let audioChunks = []; let currentRecordSlot = null; let recordStartTime = 0;
 
         async function startRecording(slotID) {
             try {
@@ -539,10 +566,18 @@
                 mediaRecorder = new MediaRecorder(stream); audioChunks = [];
                 mediaRecorder.ondataavailable = event => { audioChunks.push(event.data); };
                 mediaRecorder.onstop = async () => {
+                    // Accidental Press Guard: Must hold for at least 1 second (1000ms)
+                    if (Date.now() - recordStartTime < 1000) {
+                        document.getElementById('upload-status').innerText = "Hold longer to record.";
+                        document.getElementById('upload-status').style.color = "red";
+                        logToTerminal("Recording canceled: Held for less than 1 second.");
+                        return;
+                    }
                     if (audioChunks.length > 0 && currentRecordSlot !== null) {
                         const audioBlob = new Blob(audioChunks); convertAndUpload(audioBlob, currentRecordSlot);
                     }
                 };
+                recordStartTime = Date.now();
                 mediaRecorder.start();
                 document.getElementById('upload-status').innerText = `🔴 Recording Slot ${slotID} (Release to save)...`;
                 document.getElementById('upload-status').style.color = "var(--accent)";
