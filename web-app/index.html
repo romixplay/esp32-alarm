@@ -106,7 +106,7 @@
             <div class="header-title">UNTITLED~CAFE // SAFE</div>
             <div class="header-row">
                 <div class="header-left">
-                    <button class="btn-magic" onclick="magicRefresh()">↻ REFRESH</button>
+                    <button class="btn-magic" onclick="magicRefresh()">REFRESH</button>
                     <div class="switch-container">
                         <label class="switch" title="HARDWARE AMP POWER"><input type="checkbox" id="amp-toggle" checked onchange="saveSettings()"><span class="slider-toggle"></span></label>
                         <span>AMP</span>
@@ -235,7 +235,7 @@
             
             <div class="version-text">
                 SYSTEM UPTIME: <span id="sys-uptime">0h 0m</span><br><br>
-                <span id="fw-version">FW: 260401212922</span>
+                <span id="fw-version">FW: 260401223138</span>
             </div>
         </div>
         
@@ -325,7 +325,7 @@
                 } else if (action === "reboot_esp") {
                     await db.ref("alarm_state").update({ force_reboot: true, auth_pin: validPinPayload, master_update_time: Date.now() });
                 } else if (action === "sync_firmware") {
-                    await db.ref("system").update({ ota_url: payload.url, auth_pin: validPinPayload });
+                    await db.ref("alarm_state").update({ ota_url: payload.url, auth_pin: validPinPayload, master_update_time: Date.now() });
                 }
             } catch (error) {
                 alert("ACCESS DENIED or Network Error."); logout();

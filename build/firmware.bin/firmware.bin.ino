@@ -24,9 +24,8 @@ static const int PIN_I2S_BCLK = 18;
 static const int PIN_I2S_DIN  = 19;  
 static const int PIN_AMP_SD   = 20;  
 
-// --- FIREBASE OBJECTS (Dedicated Memory Lanes) ---
+// --- FIREBASE OBJECTS ---
 FirebaseData fbdo;          
-FirebaseData fbdo_log;      
 FirebaseData streamData;    
 FirebaseAuth auth;
 FirebaseConfig config;
@@ -37,7 +36,6 @@ bool forceDataSync = false;
 unsigned long localAlarmStartTime = 0;
 unsigned long localAlarmDuration = 0;
 bool isLocalAlarmActive = false;
-unsigned long lastAdminPoll = 0;
 unsigned long lastHeartbeat = 0; 
 double lastProcessedTrigger = 0;
 double lastStopTrigger = 0;
@@ -55,7 +53,7 @@ volatile bool ampEnabled = true;
 
 // Siren Settings
 volatile float mainVolume = 0.5;
-volatile float wavVolume = 0.5; // NEW: Separate Volume for MP3s!
+volatile float wavVolume = 0.5; 
 volatile int sirenMinFreq = 800;
 volatile int sirenMaxFreq = 1600;
 volatile int sirenSpeed = 10;
@@ -76,7 +74,7 @@ unsigned long alarmEndTime = 0;
 bool holdTriggerActive = false;
 
 // =========================================================================
-// FREERTOS AUDIO TASK (Native I2S + Synth Engine)
+// FREERTOS AUDIO TASK
 // =========================================================================
 void audioTask(void * pvParameters) {
   const int BATCH_SIZE = 512;
@@ -124,13 +122,11 @@ void audioTask(void * pvParameters) {
         }
       }
       
-      // WAV MODE
       if (audioMode == 3) {
         if (wavFile && wavFile.available()) {
           size_t bytesRead = wavFile.read(wavBuffer, sizeof(wavBuffer));
           int16_t* pcmData = (int16_t*)wavBuffer;
           for(int i = 0; i < bytesRead / 2; i++) {
-             // THE FIX: Uses the dedicated wavVolume slider!
              pcmData[i] = pcmData[i] * wavVolume; 
           }
           i2s_write(I2S_NUM_0, wavBuffer, bytesRead, &bytes_written, portMAX_DELAY);
@@ -141,7 +137,6 @@ void audioTask(void * pvParameters) {
         vTaskDelay(1 / portTICK_PERIOD_MS); 
       }
       
-      // SYNTH MODE
       else {
         int16_t amplitude = (int16_t)(15000 * ((audioMode == 1) ? mainVolume : periodicVolume));
         for(int i = 0; i < BATCH_SIZE; i++) {
@@ -193,7 +188,9 @@ void logToCloud(String message) {
       timeString = "T+" + String(millis() / 1000) + "s";
     }
     String uniqueLog = "[" + timeString + "] " + message;
-    Firebase.RTDB.setString(&fbdo_log, "/system/latest_log", uniqueLog); 
+    
+    Firebase.RTDB.setString(&fbdo, "/system/latest_log", uniqueLog); 
+    fbdo.clear(); 
   }
 }
 
@@ -207,13 +204,10 @@ bool downloadToSlot(String url, String filename) {
   client.setInsecure(); 
   HTTPClient http;
   
-  // THE BUG FIX: Force the ESP32 to follow Google's redirect maze!
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   
   if (http.begin(client, url)) {
     int httpCode = http.GET();
-    
-    // Accept either a direct OK or a successful redirect
     if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
       File f = LittleFS.open(filename, FILE_WRITE);
       if (!f) {
@@ -285,9 +279,9 @@ void setup() {
   config.timeout.socketConnection = 10 * 1000;
   config.timeout.serverResponse = 10 * 1000;
 
-  fbdo.setBSSLBufferSize(4096, 1024);
+  // Boosted the Master JSON buffer to prevent memory fragmentation
+  fbdo.setBSSLBufferSize(4096, 1024); 
   fbdo.setResponseSize(2048);
-  fbdo_log.setBSSLBufferSize(2048, 512);
   streamData.setBSSLBufferSize(2048, 1024);
 
   Firebase.begin(&config, &auth);
@@ -315,7 +309,8 @@ void setup() {
   i2s_zero_dma_buffer(I2S_NUM_0);
 
   xTaskCreate(audioTask, "AudioTask", 4096, NULL, 3, NULL);
-  logToCloud("System Booted v4.2. Wi-Fi: " + WiFi.SSID() + "; IP: " + WiFi.localIP().toString());
+  
+  logToCloud("System Booted v6.0. Connected to: " + WiFi.SSID());
 }
 
 // =========================================================================
@@ -333,7 +328,7 @@ void loop() {
     }
   }
 
-  if (Firebase.ready() && signupOK) {
+  if (WiFi.status() == WL_CONNECTED && Firebase.ready() && signupOK) {
     
     if (!ampEnabled) {
       alarmEndTime = 0; periodicEndTime = 0; holdTriggerActive = false; isLocalAlarmActive = false; audioMode = 0;
@@ -341,10 +336,8 @@ void loop() {
       bool mainAlarmActive = holdTriggerActive || isLocalAlarmActive;
       bool beepActive = false;
 
-      // FIX: Force Unsigned Long casting to prevent timer corruption
       if (periodicActive && (millis() - lastPeriodicTrigger > (unsigned long)(periodicSecs * 1000))) {
-        lastPeriodicTrigger = millis(); 
-        periodicEndTime = millis() + (unsigned long)(periodicLen * 1000);
+        lastPeriodicTrigger = millis(); periodicEndTime = millis() + (unsigned long)(periodicLen * 1000);
       }
       if (millis() < periodicEndTime) beepActive = true;
 
@@ -354,6 +347,9 @@ void loop() {
       else { audioMode = 0; }
     }
   
+    // =========================================================================
+    // ZONE 3: CLOUD SYNC (ZERO-LATENCY STREAM PUSH)
+    // =========================================================================
     if (Firebase.RTDB.readStream(&streamData)) {
       if (streamData.streamTimeout()) {
         Serial.println("Stream timed out, refreshing pipe...");
@@ -369,6 +365,22 @@ void loop() {
       if (Firebase.RTDB.getJSON(&fbdo, "/alarm_state")) {
         StaticJsonDocument<1024> doc;
         deserializeJson(doc, fbdo.to<String>());
+
+        // --- NEW OTA TRIGGER (Moved to the Stream!) ---
+        if (doc.containsKey("ota_url")) {
+          String ota_url = doc["ota_url"].as<String>();
+          if (ota_url.length() > 10) {
+            logToCloud("OTA Triggered via Stream! Downloading...");
+            Firebase.RTDB.deleteNode(&fbdo, "/alarm_state/ota_url"); 
+            delay(1000); 
+            
+            audioMode = 0; digitalWrite(PIN_AMP_SD, LOW); i2s_driver_uninstall(I2S_NUM_0); 
+            WiFiClientSecure client; client.setInsecure(); client.setTimeout(15000); 
+            httpUpdate.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+            httpUpdate.update(client, ota_url);
+            ESP.restart(); 
+          }
+        }
 
         if (doc.containsKey("force_reboot") && doc["force_reboot"].as<bool>() == true) {
             logToCloud("Reboot command received. Restarting...");
@@ -392,16 +404,14 @@ void loop() {
         if (doc.containsKey("periodic_len")) periodicLen = doc["periodic_len"].as<float>();
         if (doc.containsKey("hold_trigger")) holdTriggerActive = doc["hold_trigger"].as<bool>();
 
-        // FIX: Re-added the detailed logging when turned on!
         if (doc.containsKey("periodic_active")) {
           bool newState = doc["periodic_active"].as<bool>();
           if (newState != periodicActive) {
             periodicActive = newState;
             if (periodicActive) {
-              lastPeriodicTrigger = millis(); // Reset timer so it beeps immediately
+              lastPeriodicTrigger = millis(); 
               periodicEndTime = millis() + (unsigned long)(periodicLen * 1000);
-              String msg = "Periodic Beep ON: " + String(periodicSecs) + "s interval, " +
-                           String(periodicLen) + "s len, " + String(periodicFreq) + "Hz";
+              String msg = "Periodic Beep ON: " + String(periodicSecs) + "s interval, " + String(periodicLen) + "s len, " + String(periodicFreq) + "Hz";
               logToCloud(msg);
             } else {
               logToCloud("Periodic Beep: DISABLED");
@@ -481,31 +491,19 @@ void loop() {
       fbdo.clear(); 
     }
 
-    if (millis() - lastHeartbeat > 15000) {
+    // =========================================================================
+    // ZONE 4: UNIFIED TELEMETRY (17 Second Prime Timer)
+    // =========================================================================
+    if (millis() - lastHeartbeat > 17000) {
       lastHeartbeat = millis();
-      Firebase.RTDB.setTimestamp(&fbdo_log, "/system/last_ping");
-      Firebase.RTDB.setInt(&fbdo_log, "/system/uptime", millis() / 1000); 
-    }
-
-    if (audioMode == 0 && (millis() - lastAdminPoll > 60000)) {
-      lastAdminPoll = millis();
       
-      if (Firebase.RTDB.getString(&fbdo, "/system/ota_url")) {
-        String ota_url = fbdo.to<String>();
-        if (ota_url.length() > 10) {
-          logToCloud("OTA Triggered! Freeing memory...");
-          while (!Firebase.RTDB.deleteNode(&fbdo, "/system/ota_url")) { delay(500); }
-          delay(1000); 
-          
-          audioMode = 0; digitalWrite(PIN_AMP_SD, LOW); i2s_driver_uninstall(I2S_NUM_0); 
-          
-          WiFiClientSecure client; client.setInsecure(); client.setTimeout(15000); 
-          httpUpdate.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-          httpUpdate.update(client, ota_url);
-          ESP.restart(); 
-        }
-      }
-      fbdo.clear();
+      FirebaseJson hbJson;
+      double localTimeMs = (double)time(nullptr) * 1000.0; 
+      hbJson.set("last_ping", localTimeMs);
+      hbJson.set("uptime", millis() / 1000);
+      
+      Firebase.RTDB.updateNode(&fbdo, "/system", &hbJson);
+      fbdo.clear(); 
     }
 
     delay(20); 
