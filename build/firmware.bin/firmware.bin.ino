@@ -315,7 +315,7 @@ void setup() {
   i2s_zero_dma_buffer(I2S_NUM_0);
 
   xTaskCreate(audioTask, "AudioTask", 4096, NULL, 3, NULL);
-  logToCloud("System Booted v4.2 (Stream Engine). IP: " + WiFi.localIP().toString());
+  logToCloud("System Booted v4.2. Wi-Fi: " + WiFi.SSID() + "; IP: " + WiFi.localIP().toString());
 }
 
 // =========================================================================
