@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>UNTITLED // SAFE</title>
     <link rel="icon" href="data:,">
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
@@ -10,6 +10,11 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-storage-compat.js"></script>
     <style>
         :root { --bg: #f4f4f4; --text: #000; --terminal-bg: #111; --terminal-text: #0f0; --accent: #d32f2f; }
+        
+        /* PREVENT IPHONE TEXT SELECTION ON HOLD */
+        * { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+        input, .terminal { -webkit-user-select: text; user-select: text; } /* Keep inputs selectable */
+        
         body { font-family: monospace; background-color: var(--bg); color: var(--text); padding: 20px; margin: 0; display: flex; flex-direction: column; align-items: center; }
         
         #auth-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 1000; color: white; }
@@ -50,21 +55,21 @@
         .terminal { background-color: var(--terminal-bg); color: var(--terminal-text); padding: 1rem; font-size: 0.85rem; height: 150px; overflow-y: auto; border: 2px solid var(--text); margin-bottom: 15px; }
         .version-text { font-size: 0.9rem; font-weight: bold; color: #444; text-align: center; margin-top: 15px; }
         
-        .slot-row.priority { display: flex; gap: 10px; margin-bottom: 15px; align-items: center; }
-        .btn-play-priority { flex-grow: 1; background: var(--accent); color: white; font-weight: bold; height: 50px; border: 2px solid black; cursor: pointer; font-family: monospace; }
-        .btn-icon-label { background: #eee; border: 2px solid #000; padding: 10px 15px; cursor: pointer; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; height: 26px; }
-
+        /* AUDIO LIBRARY GRID */
         #slot-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .slot-card { background: #f9f9f9; border: 2px solid #333; padding: 10px; text-align: center; }
-        .slot-card h4 { margin: 0 0 10px 0; font-size: 0.9rem; letter-spacing: 1px; }
-        .btn-main-play { width: 100%; height: 40px; margin-bottom: 8px; background: white; border: 2px solid black; font-family: monospace; font-weight: bold; cursor: pointer; }
+        .slot-card { background: #f9f9f9; border: 2px solid #333; padding: 10px; text-align: center; display: flex; flex-direction: column; }
+        .slot-card h4 { margin: 0 0 10px 0; font-size: 0.85rem; letter-spacing: 1px; display: flex; justify-content: space-between; align-items: center; }
+        
+        .btn-main-play { width: 100%; height: 40px; margin-bottom: 8px; background: white; border: 2px solid black; font-family: monospace; font-weight: bold; cursor: pointer; transition: 0.1s; }
         .btn-main-play:active { background: #000; color: #fff; }
 
-        .slot-controls { display: flex; justify-content: space-between; gap: 4px; }
-        .btn-sm { font-size: 0.7rem; padding: 6px 0; background: #333; color: white; border: none; flex: 1; cursor: pointer; font-family: monospace; text-align: center; font-weight: bold; }
+        .slot-controls { display: flex; justify-content: space-between; gap: 5px; flex-grow: 1; align-items: flex-end; }
+        .btn-sm { font-size: 0.65rem; padding: 8px 0; background: #333; color: white; border: none; flex: 1; cursor: pointer; font-family: monospace; text-align: center; font-weight: bold; }
         .btn-sm.mic-btn { background: #555; }
         .btn-sm.del-btn { background: #a00; }
         .btn-sm:active { opacity: 0.7; }
+        
+        .edit-icon { cursor: pointer; font-size: 1rem; background: #eee; border: 1px solid #ccc; padding: 2px 5px; border-radius: 3px; }
     </style>
 </head>
 <body>
@@ -85,10 +90,10 @@
         <div class="card">
             <label>MANUAL ALARM TRIGGER</label>
             <div class="btn-grid">
-                <button class="btn-outline" onclick="triggerAlarm(3)">SOUND ALARM 3 SEC</button>
-                <button class="btn-outline" onclick="triggerAlarm(5)">SOUND ALARM 5 SEC</button>
-                <button class="btn-outline" onclick="triggerAlarm(10)">SOUND ALARM 10 SEC</button>
-                <button class="btn-outline" onclick="triggerAlarm(30)">SOUND ALARM 30 SEC</button>
+                <button class="btn-outline" onclick="triggerAlarm(3)">SOUND (3s)</button>
+                <button class="btn-outline" onclick="triggerAlarm(5)">SOUND (5s)</button>
+                <button class="btn-outline" onclick="triggerAlarm(10)">SOUND (10s)</button>
+                <button class="btn-outline" onclick="triggerAlarm(30)">SOUND (30s)</button>
             </div>
             <div class="btn-grid">
                 <button class="btn-solid" onmousedown="holdAlarm(true)" onmouseup="holdAlarm(false)" onmouseleave="holdAlarm(false)" ontouchstart="holdAlarm(true)" ontouchend="holdAlarm(false)">HOLD TO PLAY</button>
@@ -97,8 +102,11 @@
         </div>
 
         <div class="card">
-            <label>MAIN VOLUME: <span id="vol-val">50%</span></label>
+            <label>SIREN VOLUME: <span id="vol-val">50%</span></label>
             <input type="range" id="volume" min="0" max="100" value="50" onchange="saveSettings()">
+            
+            <label style="margin-top: 15px; color: var(--accent);">WAV / MP3 VOLUME: <span id="wvol-val">50%</span></label>
+            <input type="range" id="wav-volume" min="0" max="100" value="50" onchange="saveSettings()">
 
             <details>
                 <summary>ADVANCED SIREN SETTINGS</summary>
@@ -127,50 +135,38 @@
         <div class="card">
             <label style="margin-bottom: 15px;">AUDIO LIBRARY (MAX 10s PER SLOT)</label>
             
-            <div class="slot-row priority">
-                <button onclick="triggerSlot(0)" class="btn-play-priority">📯 JAMAICAN HORN (SLOT 0)</button>
-                <label class="btn-icon-label">📁<input type="file" hidden onchange="uploadToSlot(event, 0)"></label>
-            </div>
-
             <div id="slot-grid">
-                <div class="slot-card">
-                    <h4>SLOT 1</h4>
-                    <button onclick="triggerSlot(1)" class="btn-main-play">PLAY</button>
+                
+                <div class="slot-card" style="grid-column: 1 / -1; border-color: var(--accent); border-width: 3px;">
+                    <h4 style="color: var(--accent); font-size: 1rem;">
+                        <span id="name-slot0">JAMAICAN HORN (SLOT 0)</span> 
+                        <span class="edit-icon" onclick="renameSlot(0)">✏️</span>
+                    </h4>
+                    <button id="btn-play-0" onclick="triggerSlot(0)" class="btn-main-play" style="height: 50px; background: var(--accent); color: white; font-size: 1.1rem;">PLAY</button>
                     <div class="slot-controls">
-                        <label class="btn-sm">UP<input type="file" hidden onchange="uploadToSlot(event, 1)"></label>
-                        <button onmousedown="startRecording(1)" onmouseup="stopRecording()" ontouchstart="startRecording(1)" ontouchend="stopRecording()" class="btn-sm mic-btn">REC</button>
-                        <button onclick="deleteSlot(1)" class="btn-sm del-btn">CLR</button>
+                        <label class="btn-sm">UPLOAD<input type="file" hidden onchange="uploadToSlot(event, 0)"></label>
+                        <button onmousedown="startRecording(0)" onmouseup="stopRecording()" ontouchstart="startRecording(0)" ontouchend="stopRecording()" class="btn-sm mic-btn">RECORD</button>
+                        <button onclick="deleteSlot(0)" class="btn-sm del-btn">DELETE</button>
                     </div>
                 </div>
-                <div class="slot-card">
-                    <h4>SLOT 2</h4>
-                    <button onclick="triggerSlot(2)" class="btn-main-play">PLAY</button>
-                    <div class="slot-controls">
-                        <label class="btn-sm">UP<input type="file" hidden onchange="uploadToSlot(event, 2)"></label>
-                        <button onmousedown="startRecording(2)" onmouseup="stopRecording()" ontouchstart="startRecording(2)" ontouchend="stopRecording()" class="btn-sm mic-btn">REC</button>
-                        <button onclick="deleteSlot(2)" class="btn-sm del-btn">CLR</button>
-                    </div>
-                </div>
-                <div class="slot-card">
-                    <h4>SLOT 3</h4>
-                    <button onclick="triggerSlot(3)" class="btn-main-play">PLAY</button>
-                    <div class="slot-controls">
-                        <label class="btn-sm">UP<input type="file" hidden onchange="uploadToSlot(event, 3)"></label>
-                        <button onmousedown="startRecording(3)" onmouseup="stopRecording()" ontouchstart="startRecording(3)" ontouchend="stopRecording()" class="btn-sm mic-btn">REC</button>
-                        <button onclick="deleteSlot(3)" class="btn-sm del-btn">CLR</button>
-                    </div>
-                </div>
-                <div class="slot-card">
-                    <h4>SLOT 4</h4>
-                    <button onclick="triggerSlot(4)" class="btn-main-play">PLAY</button>
-                    <div class="slot-controls">
-                        <label class="btn-sm">UP<input type="file" hidden onchange="uploadToSlot(event, 4)"></label>
-                        <button onmousedown="startRecording(4)" onmouseup="stopRecording()" ontouchstart="startRecording(4)" ontouchend="stopRecording()" class="btn-sm mic-btn">REC</button>
-                        <button onclick="deleteSlot(4)" class="btn-sm del-btn">CLR</button>
-                    </div>
-                </div>
+
+                <script>
+                    for(let i=1; i<=4; i++) {
+                        document.write(`
+                            <div class="slot-card">
+                                <h4><span id="name-slot${i}">SLOT ${i}</span> <span class="edit-icon" onclick="renameSlot(${i})">✏️</span></h4>
+                                <button id="btn-play-${i}" onclick="triggerSlot(${i})" class="btn-main-play">PLAY</button>
+                                <div class="slot-controls">
+                                    <label class="btn-sm">UPLOAD<input type="file" hidden onchange="uploadToSlot(event, ${i})"></label>
+                                    <button onmousedown="startRecording(${i})" onmouseup="stopRecording()" ontouchstart="startRecording(${i})" ontouchend="stopRecording()" class="btn-sm mic-btn">RECORD</button>
+                                    <button onclick="deleteSlot(${i})" class="btn-sm del-btn">DELETE</button>
+                                </div>
+                            </div>
+                        `);
+                    }
+                </script>
             </div>
-            <p id="upload-status" style="text-align:center; margin-top:15px; font-size:0.85em; font-weight: bold;"></p>
+            <p id="upload-status" style="text-align:center; margin-top:15px; font-size:0.85em; font-weight: bold; height: 15px;"></p>
         </div>
 
         <div class="card">
@@ -211,7 +207,7 @@
             
             <div class="version-text">
                 SYSTEM UPTIME: <span id="sys-uptime">0h 0m</span><br><br>
-                <span id="fw-version">FW: 260401152323</span>
+                <span id="fw-version">FW: 260401152725</span>
             </div>
         </div>
     </div>
@@ -237,12 +233,18 @@
             }
         };
 
+        // --- WEB UI LOGGER ---
+        function logToTerminal(msg) {
+            const d = new Date();
+            const timeStr = d.toTimeString().split(' ')[0];
+            db.ref("/system/latest_log").set(`[WEB - ${timeStr}] ${msg}`);
+        }
+
         async function login() {
             const btn = document.getElementById('auth-btn');
             const err = document.getElementById('auth-error');
             sessionPasscode = document.getElementById('passcode-input').value.trim();
-            btn.innerText = "VERIFYING..."; 
-            err.style.display = 'none';
+            btn.innerText = "VERIFYING..."; err.style.display = 'none';
 
             try {
                 try {
@@ -258,12 +260,9 @@
                 localStorage.setItem("system_pin", sessionPasscode); 
                 document.getElementById('auth-screen').style.display = 'none';
                 document.getElementById('main-app').style.display = 'block';
-                syncUI(); 
-                setupSystemMonitors();
+                syncUI(); setupSystemMonitors();
             } catch (error) {
-                btn.innerText = "AUTHENTICATE";
-                err.style.display = 'block';
-                err.innerText = "ACCESS DENIED";
+                btn.innerText = "AUTHENTICATE"; err.style.display = 'block';
                 localStorage.removeItem("system_pin");
             }
         }
@@ -271,7 +270,7 @@
         async function sendCommand(action, payload = {}) {
             try {
                 payload.auth_pin = validPinPayload; 
-                payload.master_update_time = Date.now(); // THE SMART PING KEY
+                payload.master_update_time = Date.now(); 
 
                 if (action === "trigger_alarm") {
                     await db.ref("alarm_state").update({ trigger_time: Date.now(), duration: payload.duration, hold_trigger: false, auth_pin: validPinPayload, master_update_time: Date.now() });
@@ -287,17 +286,16 @@
                     await db.ref("system").update({ ota_url: payload.url, auth_pin: validPinPayload });
                 }
             } catch (error) {
-                console.error("Command failed:", error);
-                alert("ACCESS DENIED or Network Error.");
-                logout();
+                alert("ACCESS DENIED or Network Error."); logout();
             }
         }
 
         function syncUI() {
-            db.ref('alarm_state').once('value').then((snap) => {
+            db.ref('alarm_state').on('value', (snap) => {
                 const data = snap.val();
                 if(data) {
                     if(data.volume !== undefined) document.getElementById('volume').value = data.volume;
+                    if(data.wav_volume !== undefined) document.getElementById('wav-volume').value = data.wav_volume;
                     if(data.siren_min !== undefined) document.getElementById('siren-min').value = data.siren_min;
                     if(data.siren_max !== undefined) document.getElementById('siren-max').value = data.siren_max;
                     if(data.siren_speed !== undefined) document.getElementById('siren-speed').value = data.siren_speed;
@@ -311,6 +309,26 @@
                     if(data.amp_enabled !== undefined) document.getElementById('amp-toggle').checked = data.amp_enabled;
                     updateLabels();
                     updatePeriodicTitle();
+
+                    // Update Slot Names and EMPTY status
+                    for(let i=0; i<=4; i++) {
+                        let slotKey = (i === 0) ? "horn" : `slot${i}`;
+                        let nameEl = document.getElementById(`name-slot${i}`);
+                        if(nameEl && data.slot_names && data.slot_names[slotKey]) {
+                            nameEl.innerText = data.slot_names[slotKey];
+                        }
+                        
+                        let btn = document.getElementById(`btn-play-${i}`);
+                        if(btn) {
+                            if(data.slots && data.slots[slotKey] && data.slots[slotKey].version !== -1 && data.slots[slotKey].version !== undefined) {
+                                btn.innerText = "PLAY";
+                                btn.style.opacity = "1";
+                            } else {
+                                btn.innerText = "EMPTY";
+                                btn.style.opacity = "0.5";
+                            }
+                        }
+                    }
                 }
             });
         }
@@ -319,6 +337,7 @@
 
         function updateLabels() {
             document.getElementById('vol-val').innerText = document.getElementById('volume').value + '%';
+            document.getElementById('wvol-val').innerText = document.getElementById('wav-volume').value + '%';
             document.getElementById('smin-val').innerText = document.getElementById('siren-min').value + 'Hz';
             document.getElementById('smax-val').innerText = document.getElementById('siren-max').value + 'Hz';
             document.getElementById('sspeed-val').innerText = document.getElementById('siren-speed').value;
@@ -340,12 +359,19 @@
             if (!validPinPayload) return;
             updatePeriodicTitle();
             await sendCommand("update_settings", {
-                volume: parseInt(document.getElementById('volume').value), siren_min: parseInt(document.getElementById('siren-min').value),
-                siren_max: parseInt(document.getElementById('siren-max').value), siren_speed: parseInt(document.getElementById('siren-speed').value),
-                wobble_active: document.getElementById('wobble-toggle').checked, wobble_speed: parseInt(document.getElementById('wobble-speed').value),
-                periodic_active: document.getElementById('periodic-toggle').checked, periodic_sec: parseInt(document.getElementById('periodic-sec').value),
-                periodic_vol: parseInt(document.getElementById('periodic-vol').value), periodic_freq: parseInt(document.getElementById('periodic-freq').value),
-                periodic_len: parseFloat(document.getElementById('periodic-len').value), amp_enabled: document.getElementById('amp-toggle').checked
+                volume: parseInt(document.getElementById('volume').value),
+                wav_volume: parseInt(document.getElementById('wav-volume').value),
+                siren_min: parseInt(document.getElementById('siren-min').value),
+                siren_max: parseInt(document.getElementById('siren-max').value),
+                siren_speed: parseInt(document.getElementById('siren-speed').value),
+                wobble_active: document.getElementById('wobble-toggle').checked, 
+                wobble_speed: parseInt(document.getElementById('wobble-speed').value),
+                periodic_active: document.getElementById('periodic-toggle').checked, 
+                periodic_sec: parseInt(document.getElementById('periodic-sec').value),
+                periodic_vol: parseInt(document.getElementById('periodic-vol').value), 
+                periodic_freq: parseInt(document.getElementById('periodic-freq').value),
+                periodic_len: parseFloat(document.getElementById('periodic-len').value), 
+                amp_enabled: document.getElementById('amp-toggle').checked
             });
         }
 
@@ -358,25 +384,37 @@
             if(url) await sendCommand("sync_firmware", { url });
         }
 
+        // --- SLOT MANAGEMENT ---
+        async function renameSlot(slotID) {
+            let currentName = document.getElementById(`name-slot${slotID}`).innerText;
+            let newName = prompt("Enter new name (max 15 chars):", currentName);
+            if(newName && newName.trim() !== "") {
+                let slotKey = (slotID === 0) ? "horn" : `slot${slotID}`;
+                await db.ref(`alarm_state/slot_names`).update({ 
+                    [slotKey]: newName.substring(0, 15).toUpperCase() 
+                });
+            }
+        }
+
         async function triggerSlot(slotID) {
+            const btn = document.getElementById(`btn-play-${slotID}`);
+            if (btn.innerText === "EMPTY") {
+                alert("This slot is empty! Upload or Record audio first.");
+                return;
+            }
             await db.ref("alarm_state").update({ 
-                active_slot: slotID, 
-                slot_trigger: Date.now(), 
-                auth_pin: validPinPayload,
-                master_update_time: Date.now()
+                active_slot: slotID, slot_trigger: Date.now(), auth_pin: validPinPayload, master_update_time: Date.now()
             });
         }
 
         async function deleteSlot(slotID) {
             if (!confirm(`Clear audio from Slot ${slotID}?`)) return;
             const slotName = slotID === 0 ? "horn" : `slot${slotID}`;
-            await db.ref(`alarm_state/slots/${slotName}`).update({
-                version: -1,
-                auth_pin: validPinPayload
-            });
+            await db.ref(`alarm_state/slots/${slotName}`).update({ version: -1, auth_pin: validPinPayload });
             await db.ref("alarm_state").update({ master_update_time: Date.now() });
             document.getElementById('upload-status').innerText = `Slot ${slotID} cleared.`;
             document.getElementById('upload-status').style.color = "var(--accent)";
+            logToTerminal(`Deleted audio from Slot ${slotID}.`);
         }
 
         function uploadToSlot(event, slotID) {
@@ -395,16 +433,12 @@
                 const decodedAudio = await audioContext.decodeAudioData(arrayBuffer);
 
                 if (decodedAudio.duration > 10.5) {
-                    status.innerText = "Error: Audio exceeds 10s limit.";
-                    status.style.color = "red";
-                    return;
+                    status.innerText = "Error: Audio exceeds 10s limit."; status.style.color = "red"; return;
                 }
 
                 const offlineCtx = new OfflineAudioContext(1, decodedAudio.duration * 8000, 8000);
                 const source = offlineCtx.createBufferSource();
-                source.buffer = decodedAudio;
-                source.connect(offlineCtx.destination);
-                source.start();
+                source.buffer = decodedAudio; source.connect(offlineCtx.destination); source.start();
                 const resampledAudio = await offlineCtx.startRendering();
                 const wavBlob = audioBufferToWav(resampledAudio);
 
@@ -414,48 +448,29 @@
                 await storageRef.put(wavBlob);
                 const downloadURL = await storageRef.getDownloadURL();
 
-                await db.ref(`alarm_state/slots/${slotName}`).update({
-                    url: downloadURL,
-                    version: Date.now(),
-                    auth_pin: validPinPayload
-                });
+                await db.ref(`alarm_state/slots/${slotName}`).update({ url: downloadURL, version: Date.now(), auth_pin: validPinPayload });
                 await db.ref("alarm_state").update({ master_update_time: Date.now() });
 
-                status.innerText = `Slot ${slotID} Synced successfully!`;
-                status.style.color = "green";
+                status.innerText = `Slot ${slotID} Synced successfully!`; status.style.color = "green";
+                logToTerminal(`Uploaded new audio to Slot ${slotID}.`);
             } catch (e) {
-                status.innerText = "Upload failed.";
-                status.style.color = "red";
-                console.error(e);
+                status.innerText = "Upload failed."; status.style.color = "red"; console.error(e);
             }
         }
 
         function audioBufferToWav(buffer) {
-            const numChannels = buffer.numberOfChannels;
-            const sampleRate = buffer.sampleRate;
-            const format = 1; 
-            const bitDepth = 16;
-            const result = new Float32Array(buffer.length);
-            buffer.copyFromChannel(result, 0);
-            const bufferLength = result.length * 2 + 44;
-            const wavBuffer = new ArrayBuffer(bufferLength);
+            const numChannels = buffer.numberOfChannels; const sampleRate = buffer.sampleRate;
+            const format = 1; const bitDepth = 16;
+            const result = new Float32Array(buffer.length); buffer.copyFromChannel(result, 0);
+            const bufferLength = result.length * 2 + 44; const wavBuffer = new ArrayBuffer(bufferLength);
             const view = new DataView(wavBuffer);
             const writeString = (view, offset, string) => { for (let i = 0; i < string.length; i++) view.setUint8(offset + i, string.charCodeAt(i)); };
-            
-            writeString(view, 0, 'RIFF');
-            view.setUint32(4, 36 + result.length * 2, true);
-            writeString(view, 8, 'WAVE');
-            writeString(view, 12, 'fmt ');
-            view.setUint32(16, 16, true);
-            view.setUint16(20, format, true);
-            view.setUint16(22, numChannels, true);
-            view.setUint32(24, sampleRate, true);
-            view.setUint32(28, sampleRate * numChannels * 2, true);
-            view.setUint16(32, numChannels * 2, true);
-            view.setUint16(34, bitDepth, true);
-            writeString(view, 36, 'data');
-            view.setUint32(40, result.length * 2, true);
-            
+            writeString(view, 0, 'RIFF'); view.setUint32(4, 36 + result.length * 2, true);
+            writeString(view, 8, 'WAVE'); writeString(view, 12, 'fmt ');
+            view.setUint32(16, 16, true); view.setUint16(20, format, true); view.setUint16(22, numChannels, true);
+            view.setUint32(24, sampleRate, true); view.setUint32(28, sampleRate * numChannels * 2, true);
+            view.setUint16(32, numChannels * 2, true); view.setUint16(34, bitDepth, true);
+            writeString(view, 36, 'data'); view.setUint32(40, result.length * 2, true);
             let offset = 44;
             for (let i = 0; i < result.length; i++, offset += 2) {
                 let s = Math.max(-1, Math.min(1, result[i]));
@@ -464,30 +479,23 @@
             return new Blob([wavBuffer], { type: 'audio/wav' });
         }
 
-        let mediaRecorder;
-        let audioChunks = [];
-        let currentRecordSlot = null;
+        let mediaRecorder; let audioChunks = []; let currentRecordSlot = null;
 
         async function startRecording(slotID) {
             try {
                 currentRecordSlot = slotID;
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                mediaRecorder = new MediaRecorder(stream);
-                audioChunks = [];
+                mediaRecorder = new MediaRecorder(stream); audioChunks = [];
                 mediaRecorder.ondataavailable = event => { audioChunks.push(event.data); };
                 mediaRecorder.onstop = async () => {
                     if (audioChunks.length > 0 && currentRecordSlot !== null) {
-                        const audioBlob = new Blob(audioChunks);
-                        convertAndUpload(audioBlob, currentRecordSlot);
+                        const audioBlob = new Blob(audioChunks); convertAndUpload(audioBlob, currentRecordSlot);
                     }
                 };
                 mediaRecorder.start();
-                document.getElementById('upload-status').innerText = `🔴 Recording to Slot ${slotID} (Release to save)...`;
+                document.getElementById('upload-status').innerText = `🔴 Recording Slot ${slotID} (Release to save)...`;
                 document.getElementById('upload-status').style.color = "var(--accent)";
-            } catch (err) {
-                alert("Microphone access denied. Ensure you are on HTTPS.");
-                console.error(err);
-            }
+            } catch (err) { alert("Microphone access denied."); }
         }
 
         function stopRecording() { if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop(); }
@@ -508,19 +516,16 @@
                 const lastPing = snapshot.val();
                 if (lastPing) {
                     if (Date.now() - lastPing > 20000) {
-                        statusBadge.className = "status-badge bg-red";
-                        statusBadge.innerText = "OFFLINE";
+                        statusBadge.className = "status-badge bg-red"; statusBadge.innerText = "OFFLINE";
                     } else {
-                        statusBadge.className = "status-badge bg-green";
-                        statusBadge.innerText = "ONLINE";
+                        statusBadge.className = "status-badge bg-green"; statusBadge.innerText = "ONLINE";
                     }
                 }
             });
             db.ref('system/uptime').on('value', (snapshot) => {
                 const upSecs = snapshot.val();
                 if (upSecs) {
-                    const hours = Math.floor(upSecs / 3600);
-                    const minutes = Math.floor((upSecs % 3600) / 60);
+                    const hours = Math.floor(upSecs / 3600); const minutes = Math.floor((upSecs % 3600) / 60);
                     document.getElementById('sys-uptime').innerText = `${hours}h ${minutes}m`;
                 }
             });
