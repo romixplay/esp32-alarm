@@ -25,19 +25,20 @@ static const int PIN_I2S_DIN  = 19;
 static const int PIN_AMP_SD   = 20;  
 
 // --- FIREBASE OBJECTS (Dedicated Memory Lanes) ---
-FirebaseData fbdo;          // Used for downloading the heavy JSON
-FirebaseData fbdo_log;      // Used EXCLUSIVELY for logging so it doesn't crash the JSON
-FirebaseData streamData;    // THE NEW PUSH RECEIVER
+FirebaseData fbdo;          
+FirebaseData fbdo_log;      
+FirebaseData streamData;    
 FirebaseAuth auth;
 FirebaseConfig config;
 bool signupOK = false;
 
 // --- SYSTEM STATE VARIABLES ---
-bool forceDataSync = false;     // The "Doorbell" flag triggered by the Stream
+bool forceDataSync = false;     
 unsigned long localAlarmStartTime = 0;
 unsigned long localAlarmDuration = 0;
 bool isLocalAlarmActive = false;
 unsigned long lastAdminPoll = 0;
+unsigned long lastHeartbeat = 0; 
 double lastProcessedTrigger = 0;
 double lastStopTrigger = 0;
 double lastSlotTrigger = 0;      
@@ -48,12 +49,13 @@ String currentWavPath = "/horn.wav";
 double localSlotVersions[6] = {0, 0, 0, 0, 0, 0}; 
 
 // --- DYNAMIC AUDIO ENGINE CONFIG ---
-volatile int audioMode = 0; // 0=Silence, 1=Siren, 2=Beep, 3=WAV
+volatile int audioMode = 0; 
 File wavFile;
 volatile bool ampEnabled = true;
 
 // Siren Settings
 volatile float mainVolume = 0.5;
+volatile float wavVolume = 0.5; // NEW: Separate Volume for MP3s!
 volatile int sirenMinFreq = 800;
 volatile int sirenMaxFreq = 1600;
 volatile int sirenSpeed = 10;
@@ -128,7 +130,8 @@ void audioTask(void * pvParameters) {
           size_t bytesRead = wavFile.read(wavBuffer, sizeof(wavBuffer));
           int16_t* pcmData = (int16_t*)wavBuffer;
           for(int i = 0; i < bytesRead / 2; i++) {
-             pcmData[i] = pcmData[i] * mainVolume; 
+             // THE FIX: Uses the dedicated wavVolume slider!
+             pcmData[i] = pcmData[i] * wavVolume; 
           }
           i2s_write(I2S_NUM_0, wavBuffer, bytesRead, &bytes_written, portMAX_DELAY);
         } else {
@@ -190,8 +193,6 @@ void logToCloud(String message) {
       timeString = "T+" + String(millis() / 1000) + "s";
     }
     String uniqueLog = "[" + timeString + "] " + message;
-    
-    // BUGFIX: Use the dedicated log object so we don't crash the main JSON reader!
     Firebase.RTDB.setString(&fbdo_log, "/system/latest_log", uniqueLog); 
   }
 }
@@ -206,9 +207,14 @@ bool downloadToSlot(String url, String filename) {
   client.setInsecure(); 
   HTTPClient http;
   
+  // THE BUG FIX: Force the ESP32 to follow Google's redirect maze!
+  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  
   if (http.begin(client, url)) {
     int httpCode = http.GET();
-    if (httpCode == HTTP_CODE_OK) {
+    
+    // Accept either a direct OK or a successful redirect
+    if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
       File f = LittleFS.open(filename, FILE_WRITE);
       if (!f) {
         logToCloud("Error: LittleFS write failed for " + filename);
@@ -217,7 +223,10 @@ bool downloadToSlot(String url, String filename) {
       http.writeToStream(&f);
       f.close();
       http.end();
+      logToCloud("Download Complete: " + filename);
       return true;
+    } else {
+      logToCloud("HTTP Error during download: " + String(httpCode));
     }
     http.end();
   }
@@ -257,6 +266,8 @@ void setup() {
 
   WiFi.setSleep(false);
   Serial.println("\nWi-Fi Connected!");
+  Serial.print("Network: "); Serial.println(WiFi.SSID());
+  Serial.print("IP Address: "); Serial.println(WiFi.localIP());
 
   Serial.print("Syncing internal clock for SSL...");
   configTime(7200, 3600, "pool.ntp.org", "time.nist.gov");
@@ -274,7 +285,6 @@ void setup() {
   config.timeout.socketConnection = 10 * 1000;
   config.timeout.serverResponse = 10 * 1000;
 
-  // Give our dedicated memory lanes plenty of room
   fbdo.setBSSLBufferSize(4096, 1024);
   fbdo.setResponseSize(2048);
   fbdo_log.setBSSLBufferSize(2048, 512);
@@ -286,7 +296,6 @@ void setup() {
   Serial.println("Warming up secure cloud connection...");
   delay(2000);
   
-  // Initialize the Zero-Latency Push Stream!
   if (!Firebase.RTDB.beginStream(&streamData, "/alarm_state")) {
     Serial.println("Stream Connection Failed: " + streamData.errorReason());
   } else {
@@ -306,7 +315,7 @@ void setup() {
   i2s_zero_dma_buffer(I2S_NUM_0);
 
   xTaskCreate(audioTask, "AudioTask", 4096, NULL, 3, NULL);
-  logToCloud("System Booted v4.0 (Stream Engine). IP: " + WiFi.localIP().toString());
+  logToCloud("System Booted v4.2 (Stream Engine). IP: " + WiFi.localIP().toString());
 }
 
 // =========================================================================
@@ -315,7 +324,6 @@ void setup() {
 void loop() {
   ArduinoOTA.handle();
 
-  // 1. THE HARDWARE KILL-SWITCH
   if (isLocalAlarmActive) {
     if (millis() - localAlarmStartTime >= localAlarmDuration) {
       logToCloud("Hardware Timer: Stopping audio.");
@@ -327,7 +335,6 @@ void loop() {
 
   if (Firebase.ready() && signupOK) {
     
-    // 2. FAST PRIORITY ROUTER
     if (!ampEnabled) {
       alarmEndTime = 0; periodicEndTime = 0; holdTriggerActive = false; isLocalAlarmActive = false; audioMode = 0;
     } else {
@@ -345,31 +352,22 @@ void loop() {
       else { audioMode = 0; }
     }
   
-    // =========================================================================
-    // ZONE 3: CLOUD SYNC (ZERO-LATENCY STREAM PUSH)
-    // =========================================================================
-    
-    // Listen for the silent "Doorbell" from Firebase.
-    // This uses virtually ZERO CPU power. It just listens to the open pipe.
     if (Firebase.RTDB.readStream(&streamData)) {
       if (streamData.streamTimeout()) {
         Serial.println("Stream timed out, refreshing pipe...");
       }
       if (streamData.streamAvailable()) {
-        // A change was pushed from the Web UI! Ring the doorbell.
         forceDataSync = true; 
       }
     }
 
-    // Only do the heavy math of downloading JSON if the doorbell rang (or on boot)
     if (forceDataSync || isFirstBootSync) {
-      forceDataSync = false; // Reset the doorbell
+      forceDataSync = false; 
       
       if (Firebase.RTDB.getJSON(&fbdo, "/alarm_state")) {
         StaticJsonDocument<1024> doc;
         deserializeJson(doc, fbdo.to<String>());
 
-        // --- ADMIN COMMANDS ---
         if (doc.containsKey("force_reboot") && doc["force_reboot"].as<bool>() == true) {
             logToCloud("Reboot command received. Restarting...");
             Firebase.RTDB.setBool(&fbdo, "/alarm_state/force_reboot", false); 
@@ -377,10 +375,10 @@ void loop() {
             ESP.restart(); 
         }
 
-        // --- SETTINGS SYNC ---
         if (doc.containsKey("amp_enabled")) ampEnabled = doc["amp_enabled"].as<bool>();
         if (doc.containsKey("wobble_active")) wobbleActive = doc["wobble_active"].as<bool>();
         if (doc.containsKey("volume")) mainVolume = constrain(doc["volume"].as<int>(), 0, 100) / 100.0;
+        if (doc.containsKey("wav_volume")) wavVolume = constrain(doc["wav_volume"].as<int>(), 0, 100) / 100.0; // SYNC MP3 VOL
         if (doc.containsKey("siren_min")) sirenMinFreq = doc["siren_min"].as<int>();
         if (doc.containsKey("siren_max")) sirenMaxFreq = doc["siren_max"].as<int>();
         if (doc.containsKey("siren_speed")) sirenSpeed = doc["siren_speed"].as<int>();
@@ -399,7 +397,6 @@ void loop() {
           }
         }
 
-        // --- THE TIME MACHINE (FIRST BOOT LOGIC) ---
         if (isFirstBootSync) {
           if (doc.containsKey("trigger_time")) lastProcessedTrigger = doc["trigger_time"].as<double>();
           if (doc.containsKey("stop_trigger")) lastStopTrigger = doc["stop_trigger"].as<double>();
@@ -417,9 +414,7 @@ void loop() {
           Serial.println("First boot sync complete. Hardware is armed.");
         } 
         
-        // --- LIVE ACTION ROUTER ---
         else {
-          // 1. Force Stop Trigger
           if (doc.containsKey("stop_trigger")) {
             double currentStop = doc["stop_trigger"].as<double>();
             if (currentStop > lastStopTrigger) {
@@ -429,7 +424,6 @@ void loop() {
             }
           }
 
-          // 2. Main Siren Trigger
           if (doc.containsKey("trigger_time")) {
             double currentTrigger = doc["trigger_time"].as<double>();
             if (currentTrigger > lastProcessedTrigger) {
@@ -442,7 +436,6 @@ void loop() {
             }
           }
 
-          // 3. Smart Slot Trigger
           if (doc.containsKey("slot_trigger") && doc.containsKey("active_slot")) {
             double currentSlotTrigger = doc["slot_trigger"].as<double>();
             if (currentSlotTrigger > lastSlotTrigger) {
@@ -473,12 +466,15 @@ void loop() {
           }
         }
       }
-      fbdo.clear(); // Free JSON Memory
+      fbdo.clear(); 
     }
 
-    // =========================================================================
-    // ZONE 4: LIGHTWEIGHT OTA CHECK (60s, Only if silent)
-    // =========================================================================
+    if (millis() - lastHeartbeat > 15000) {
+      lastHeartbeat = millis();
+      Firebase.RTDB.setTimestamp(&fbdo_log, "/system/last_ping");
+      Firebase.RTDB.setInt(&fbdo_log, "/system/uptime", millis() / 1000); 
+    }
+
     if (audioMode == 0 && (millis() - lastAdminPoll > 60000)) {
       lastAdminPoll = millis();
       
