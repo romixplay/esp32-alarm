@@ -341,8 +341,10 @@ void loop() {
       bool mainAlarmActive = holdTriggerActive || isLocalAlarmActive;
       bool beepActive = false;
 
-      if (periodicActive && (millis() - lastPeriodicTrigger > (periodicSecs * 1000))) {
-        lastPeriodicTrigger = millis(); periodicEndTime = millis() + (periodicLen * 1000);
+      // FIX: Force Unsigned Long casting to prevent timer corruption
+      if (periodicActive && (millis() - lastPeriodicTrigger > (unsigned long)(periodicSecs * 1000))) {
+        lastPeriodicTrigger = millis(); 
+        periodicEndTime = millis() + (unsigned long)(periodicLen * 1000);
       }
       if (millis() < periodicEndTime) beepActive = true;
 
@@ -378,7 +380,7 @@ void loop() {
         if (doc.containsKey("amp_enabled")) ampEnabled = doc["amp_enabled"].as<bool>();
         if (doc.containsKey("wobble_active")) wobbleActive = doc["wobble_active"].as<bool>();
         if (doc.containsKey("volume")) mainVolume = constrain(doc["volume"].as<int>(), 0, 100) / 100.0;
-        if (doc.containsKey("wav_volume")) wavVolume = constrain(doc["wav_volume"].as<int>(), 0, 100) / 100.0; // SYNC MP3 VOL
+        if (doc.containsKey("wav_volume")) wavVolume = constrain(doc["wav_volume"].as<int>(), 0, 100) / 100.0; 
         if (doc.containsKey("siren_min")) sirenMinFreq = doc["siren_min"].as<int>();
         if (doc.containsKey("siren_max")) sirenMaxFreq = doc["siren_max"].as<int>();
         if (doc.containsKey("siren_speed")) sirenSpeed = doc["siren_speed"].as<int>();
@@ -390,10 +392,20 @@ void loop() {
         if (doc.containsKey("periodic_len")) periodicLen = doc["periodic_len"].as<float>();
         if (doc.containsKey("hold_trigger")) holdTriggerActive = doc["hold_trigger"].as<bool>();
 
+        // FIX: Re-added the detailed logging when turned on!
         if (doc.containsKey("periodic_active")) {
           bool newState = doc["periodic_active"].as<bool>();
           if (newState != periodicActive) {
             periodicActive = newState;
+            if (periodicActive) {
+              lastPeriodicTrigger = millis(); // Reset timer so it beeps immediately
+              periodicEndTime = millis() + (unsigned long)(periodicLen * 1000);
+              String msg = "Periodic Beep ON: " + String(periodicSecs) + "s interval, " +
+                           String(periodicLen) + "s len, " + String(periodicFreq) + "Hz";
+              logToCloud(msg);
+            } else {
+              logToCloud("Periodic Beep: DISABLED");
+            }
           }
         }
 

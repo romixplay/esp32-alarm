@@ -13,7 +13,7 @@
         
         /* PREVENT IPHONE TEXT SELECTION ON HOLD */
         * { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
-        input, .terminal { -webkit-user-select: text; user-select: text; } /* Keep inputs selectable */
+        input, .terminal { -webkit-user-select: text; user-select: text; } 
         
         body { font-family: monospace; background-color: var(--bg); color: var(--text); padding: 20px; margin: 0; display: flex; flex-direction: column; align-items: center; }
         
@@ -36,13 +36,13 @@
         input[type="range"] { width: 100%; cursor: pointer; margin-bottom: 10px; }
         
         .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
-        .btn-outline { background: transparent; border: 2px solid var(--accent); color: var(--accent); padding: 12px; font-family: monospace; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .btn-outline { background: transparent; border: 2px solid var(--accent); color: var(--accent); padding: 10px 5px; font-family: monospace; font-weight: bold; font-size: 0.8rem; cursor: pointer; transition: 0.2s; }
         .btn-outline:active { background: var(--accent); color: white; }
         .btn-solid { background: #000; color: #fff; border: 2px solid #000; padding: 15px; font-family: monospace; font-weight: bold; width: 100%; cursor: pointer; text-align: center; }
         .btn-solid:active { background: #333; }
 
         .switch-container { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; font-weight: bold; text-transform: uppercase; }
-        .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+        .switch { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
         .switch input { opacity: 0; width: 0; height: 0; }
         .slider-toggle { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #555; transition: .3s; border-radius: 24px; border: 2px solid #000; }
         .slider-toggle:before { position: absolute; content: ""; height: 16px; width: 16px; left: 2px; bottom: 2px; background-color: white; transition: .3s; border-radius: 50%; }
@@ -64,12 +64,19 @@
         .btn-main-play:active { background: #000; color: #fff; }
 
         .slot-controls { display: flex; justify-content: space-between; gap: 5px; flex-grow: 1; align-items: flex-end; }
-        .btn-sm { font-size: 0.65rem; padding: 8px 0; background: #333; color: white; border: none; flex: 1; cursor: pointer; font-family: monospace; text-align: center; font-weight: bold; }
+        .btn-sm { 
+            height: 32px; box-sizing: border-box; /* PERFECT ALIGNMENT FIX */
+            display: flex; align-items: center; justify-content: center; 
+            font-size: 0.65rem; background: #333; color: white; border: none; flex: 1; cursor: pointer; font-family: monospace; font-weight: bold; 
+        }
         .btn-sm.mic-btn { background: #555; }
         .btn-sm.del-btn { background: #a00; }
         .btn-sm:active { opacity: 0.7; }
         
-        .edit-icon { cursor: pointer; font-size: 1rem; background: #eee; border: 1px solid #ccc; padding: 2px 5px; border-radius: 3px; }
+        .icon-btn { cursor: pointer; font-size: 1rem; background: #eee; border: 1px solid #ccc; padding: 2px 5px; border-radius: 3px; margin-left: 3px; }
+        
+        .input-group { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .input-group input[type="number"] { width: 80px; padding: 5px; font-family: monospace; font-size: 0.9rem; box-sizing: border-box; text-align: center;}
     </style>
 </head>
 <body>
@@ -90,23 +97,20 @@
         <div class="card">
             <label>MANUAL ALARM TRIGGER</label>
             <div class="btn-grid">
-                <button class="btn-outline" onclick="triggerAlarm(3)">SOUND (3s)</button>
-                <button class="btn-outline" onclick="triggerAlarm(5)">SOUND (5s)</button>
-                <button class="btn-outline" onclick="triggerAlarm(10)">SOUND (10s)</button>
-                <button class="btn-outline" onclick="triggerAlarm(30)">SOUND (30s)</button>
+                <button class="btn-outline" onclick="triggerAlarm(3)">SOUND ALARM 3 SEC</button>
+                <button class="btn-outline" onclick="triggerAlarm(5)">SOUND ALARM 5 SEC</button>
+                <button class="btn-outline" onclick="triggerAlarm(10)">SOUND ALARM 10 SEC</button>
+                <button class="btn-outline" onclick="triggerAlarm(30)">SOUND ALARM 30 SEC</button>
             </div>
             <div class="btn-grid">
                 <button class="btn-solid" onmousedown="holdAlarm(true)" onmouseup="holdAlarm(false)" onmouseleave="holdAlarm(false)" ontouchstart="holdAlarm(true)" ontouchend="holdAlarm(false)">HOLD TO PLAY</button>
                 <button class="btn-solid" style="background: var(--accent); border-color: var(--accent);" onclick="stopAlarm()">STOP</button>
             </div>
-        </div>
 
-        <div class="card">
+            <hr style="border: 1px dashed var(--text); margin: 20px 0;">
+            
             <label>SIREN VOLUME: <span id="vol-val">50%</span></label>
             <input type="range" id="volume" min="0" max="100" value="50" onchange="saveSettings()">
-            
-            <label style="margin-top: 15px; color: var(--accent);">WAV / MP3 VOLUME: <span id="wvol-val">50%</span></label>
-            <input type="range" id="wav-volume" min="0" max="100" value="50" onchange="saveSettings()">
 
             <details>
                 <summary>ADVANCED SIREN SETTINGS</summary>
@@ -133,18 +137,24 @@
         </div>
 
         <div class="card">
-            <label style="margin-bottom: 15px;">AUDIO LIBRARY (MAX 10s PER SLOT)</label>
+            <label style="margin-bottom: 5px;">AUDIO LIBRARY (MAX 10S PER SLOT)</label>
+            
+            <label style="color: var(--accent); margin-top: 10px;">AUDIO VOLUME: <span id="wvol-val">50%</span></label>
+            <input type="range" id="wav-volume" min="0" max="100" value="50" onchange="saveSettings()" style="margin-bottom: 20px;">
             
             <div id="slot-grid">
                 
                 <div class="slot-card" style="grid-column: 1 / -1; border-color: var(--accent); border-width: 3px;">
                     <h4 style="color: var(--accent); font-size: 1rem;">
                         <span id="name-slot0">JAMAICAN HORN (SLOT 0)</span> 
-                        <span class="edit-icon" onclick="renameSlot(0)">✏️</span>
+                        <div>
+                            <span class="icon-btn" onclick="previewAudio(0)" title="Preview on Device">🔊</span>
+                            <span class="icon-btn" onclick="renameSlot(0)" title="Rename Slot">✏️</span>
+                        </div>
                     </h4>
                     <button id="btn-play-0" onclick="triggerSlot(0)" class="btn-main-play" style="height: 50px; background: var(--accent); color: white; font-size: 1.1rem;">PLAY</button>
                     <div class="slot-controls">
-                        <label class="btn-sm">UPLOAD<input type="file" hidden onchange="uploadToSlot(event, 0)"></label>
+                        <label class="btn-sm">UPLOAD<input type="file" hidden accept="audio/*" onchange="uploadToSlot(event, 0)"></label>
                         <button onmousedown="startRecording(0)" onmouseup="stopRecording()" ontouchstart="startRecording(0)" ontouchend="stopRecording()" class="btn-sm mic-btn">RECORD</button>
                         <button onclick="deleteSlot(0)" class="btn-sm del-btn">DELETE</button>
                     </div>
@@ -154,10 +164,16 @@
                     for(let i=1; i<=4; i++) {
                         document.write(`
                             <div class="slot-card">
-                                <h4><span id="name-slot${i}">SLOT ${i}</span> <span class="edit-icon" onclick="renameSlot(${i})">✏️</span></h4>
+                                <h4>
+                                    <span id="name-slot${i}">SLOT ${i}</span> 
+                                    <div>
+                                        <span class="icon-btn" onclick="previewAudio(${i})" title="Preview on Device">🔊</span>
+                                        <span class="icon-btn" onclick="renameSlot(${i})" title="Rename Slot">✏️</span>
+                                    </div>
+                                </h4>
                                 <button id="btn-play-${i}" onclick="triggerSlot(${i})" class="btn-main-play">PLAY</button>
                                 <div class="slot-controls">
-                                    <label class="btn-sm">UPLOAD<input type="file" hidden onchange="uploadToSlot(event, ${i})"></label>
+                                    <label class="btn-sm">UPLOAD<input type="file" hidden accept="audio/*" onchange="uploadToSlot(event, ${i})"></label>
                                     <button onmousedown="startRecording(${i})" onmouseup="stopRecording()" ontouchstart="startRecording(${i})" ontouchend="stopRecording()" class="btn-sm mic-btn">RECORD</button>
                                     <button onclick="deleteSlot(${i})" class="btn-sm del-btn">DELETE</button>
                                 </div>
@@ -170,17 +186,20 @@
         </div>
 
         <div class="card">
-            <div class="switch-container" style="margin-bottom: 5px;">
+            <div class="switch-container" style="margin-bottom: 15px;">
                 <label class="switch"><input type="checkbox" id="periodic-toggle" onchange="saveSettings()"><span class="slider-toggle"></span></label>
                 <span id="periodic-title">PERIODIC BEEP EVERY 30 SEC</span>
             </div>
             
-            <div style="margin-top: 10px; padding-left: 10px; border-left: 2px solid var(--text);">
-                <label>Interval (Seconds):</label>
-                <input type="number" id="periodic-sec" value="30" style="width: 100px; padding: 5px; margin-bottom: 10px;" onchange="updatePeriodicTitle(); saveSettings()">
-                
-                <label>Beep Length (Seconds):</label>
-                <input type="number" id="periodic-len" value="0.1" step="0.1" style="width: 100px; padding: 5px;" onchange="saveSettings()">
+            <div style="padding-left: 10px; border-left: 2px solid var(--text);">
+                <div class="input-group">
+                    <label>Interval (Sec):</label>
+                    <input type="number" id="periodic-sec" value="30" min="1" onchange="updatePeriodicTitle(); saveSettings()">
+                </div>
+                <div class="input-group">
+                    <label>Beep Length (Sec):</label>
+                    <input type="number" id="periodic-len" value="0.1" step="0.1" min="0.1" onchange="saveSettings()">
+                </div>
 
                 <label style="margin-top: 15px;">BEEP FREQUENCY: <span id="pfreq-val">1000Hz</span></label>
                 <input type="range" id="periodic-freq" min="300" max="2500" step="50" value="1000" onchange="saveSettings()">
@@ -198,7 +217,7 @@
                     <label class="switch"><input type="checkbox" id="amp-toggle" checked onchange="saveSettings()"><span class="slider-toggle"></span></label>
                     <span>AMP HARDWARE POWER</span>
                 </div>
-                <button class="btn-outline" style="padding: 5px 10px; font-size: 0.8rem; border-color: #000; color: #000;" onclick="rebootESP()">REBOOT ESP32</button>
+                <button class="btn-outline" style="padding: 5px 10px; font-size: 0.8rem; border-color: #000; color: #000;" onclick="rebootESP()">REBOOT</button>
             </div>
 
             <div class="terminal" id="live-log">Loading system logs...</div>
@@ -207,7 +226,7 @@
             
             <div class="version-text">
                 SYSTEM UPTIME: <span id="sys-uptime">0h 0m</span><br><br>
-                <span id="fw-version">FW: 260401152725</span>
+                <span id="fw-version">FW: 260401175138</span>
             </div>
         </div>
     </div>
@@ -233,7 +252,6 @@
             }
         };
 
-        // --- WEB UI LOGGER ---
         function logToTerminal(msg) {
             const d = new Date();
             const timeStr = d.toTimeString().split(' ')[0];
@@ -393,7 +411,22 @@
                 await db.ref(`alarm_state/slot_names`).update({ 
                     [slotKey]: newName.substring(0, 15).toUpperCase() 
                 });
+                logToTerminal(`Renamed Slot ${slotID} to ${newName}`);
             }
+        }
+
+        function previewAudio(slotID) {
+            let slotKey = (slotID === 0) ? "horn" : `slot${slotID}`;
+            db.ref(`alarm_state/slots/${slotKey}/url`).once('value').then(snap => {
+                const url = snap.val();
+                if(url) {
+                    const audio = new Audio(url);
+                    audio.play();
+                    logToTerminal(`Playing preview for Slot ${slotID} on local device.`);
+                } else {
+                    alert("This slot is empty!");
+                }
+            });
         }
 
         async function triggerSlot(slotID) {
@@ -500,6 +533,18 @@
 
         function stopRecording() { if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop(); }
 
+        // --- FIXED: ZOMBIE ONLINE MONITOR ---
+        let lastKnownPing = Date.now();
+
+        function updateStatusBadge() {
+            const statusBadge = document.getElementById('status-indicator');
+            if (Date.now() - lastKnownPing > 20000) {
+                statusBadge.className = "status-badge bg-red"; statusBadge.innerText = "OFFLINE";
+            } else {
+                statusBadge.className = "status-badge bg-green"; statusBadge.innerText = "ONLINE";
+            }
+        }
+
         function setupSystemMonitors() {
             let logHistory = [];
             db.ref('system/latest_log').on('value', (snapshot) => {
@@ -511,17 +556,18 @@
                     logBox.scrollTop = logBox.scrollHeight; 
                 }
             });
-            const statusBadge = document.getElementById('status-indicator');
+            
             db.ref('system/last_ping').on('value', (snapshot) => {
                 const lastPing = snapshot.val();
                 if (lastPing) {
-                    if (Date.now() - lastPing > 20000) {
-                        statusBadge.className = "status-badge bg-red"; statusBadge.innerText = "OFFLINE";
-                    } else {
-                        statusBadge.className = "status-badge bg-green"; statusBadge.innerText = "ONLINE";
-                    }
+                    lastKnownPing = lastPing;
+                    updateStatusBadge();
                 }
             });
+
+            // The internal stopwatch: Checks the connection every 3 seconds!
+            setInterval(updateStatusBadge, 3000);
+
             db.ref('system/uptime').on('value', (snapshot) => {
                 const upSecs = snapshot.val();
                 if (upSecs) {
