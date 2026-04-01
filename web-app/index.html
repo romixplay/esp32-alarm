@@ -11,7 +11,6 @@
     <style>
         :root { --bg: #f4f4f4; --text: #000; --terminal-bg: #111; --terminal-text: #0f0; --accent: #d32f2f; }
         
-        /* PREVENT IPHONE TEXT SELECTION ON HOLD */
         * { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
         input, .terminal { -webkit-user-select: text; user-select: text; } 
         
@@ -63,11 +62,12 @@
         .btn-main-play { width: 100%; height: 40px; margin-bottom: 8px; background: white; border: 2px solid black; font-family: monospace; font-weight: bold; cursor: pointer; transition: 0.1s; }
         .btn-main-play:active { background: #000; color: #fff; }
 
-        .slot-controls { display: flex; justify-content: space-between; gap: 5px; flex-grow: 1; align-items: flex-end; }
+        .slot-controls { display: flex; justify-content: space-between; gap: 5px; flex-grow: 1; align-items: stretch; }
         .btn-sm { 
-            height: 32px; box-sizing: border-box; /* PERFECT ALIGNMENT FIX */
+            flex: 1 1 0; /* Mathematical equal distribution */
+            height: 32px; box-sizing: border-box; margin: 0; padding: 0;
             display: flex; align-items: center; justify-content: center; 
-            font-size: 0.65rem; background: #333; color: white; border: none; flex: 1; cursor: pointer; font-family: monospace; font-weight: bold; 
+            font-size: 0.65rem; background: #333; color: white; border: none; cursor: pointer; font-family: monospace; font-weight: bold; 
         }
         .btn-sm.mic-btn { background: #555; }
         .btn-sm.del-btn { background: #a00; }
@@ -217,7 +217,7 @@
                     <label class="switch"><input type="checkbox" id="amp-toggle" checked onchange="saveSettings()"><span class="slider-toggle"></span></label>
                     <span>AMP HARDWARE POWER</span>
                 </div>
-                <button class="btn-outline" style="padding: 5px 10px; font-size: 0.8rem; border-color: #000; color: #000;" onclick="rebootESP()">REBOOT</button>
+                <button class="btn-outline" style="padding: 5px 10px; font-size: 0.8rem; border-color: #000; color: #000;" onclick="rebootESP()">REBOOT ESP32</button>
             </div>
 
             <div class="terminal" id="live-log">Loading system logs...</div>
@@ -226,7 +226,7 @@
             
             <div class="version-text">
                 SYSTEM UPTIME: <span id="sys-uptime">0h 0m</span><br><br>
-                <span id="fw-version">FW: 260401175138</span>
+                <span id="fw-version">FW: 260401203556</span>
             </div>
         </div>
     </div>
@@ -252,10 +252,15 @@
             }
         };
 
+        // --- FIXED: SECURE LOGGING ---
+        // This function now uses your auth_pin, preventing the 'permission_denied' error.
         function logToTerminal(msg) {
             const d = new Date();
             const timeStr = d.toTimeString().split(' ')[0];
-            db.ref("/system/latest_log").set(`[WEB - ${timeStr}] ${msg}`);
+            db.ref("system").update({
+                latest_log: `[WEB - ${timeStr}] ${msg}`,
+                auth_pin: validPinPayload
+            }).catch(err => console.error("Log write failed:", err));
         }
 
         async function login() {
@@ -328,7 +333,6 @@
                     updateLabels();
                     updatePeriodicTitle();
 
-                    // Update Slot Names and EMPTY status
                     for(let i=0; i<=4; i++) {
                         let slotKey = (i === 0) ? "horn" : `slot${i}`;
                         let nameEl = document.getElementById(`name-slot${i}`);
@@ -402,14 +406,17 @@
             if(url) await sendCommand("sync_firmware", { url });
         }
 
-        // --- SLOT MANAGEMENT ---
+        // --- FIXED: SECURE SLOT MANAGEMENT ---
         async function renameSlot(slotID) {
             let currentName = document.getElementById(`name-slot${slotID}`).innerText;
             let newName = prompt("Enter new name (max 15 chars):", currentName);
             if(newName && newName.trim() !== "") {
                 let slotKey = (slotID === 0) ? "horn" : `slot${slotID}`;
-                await db.ref(`alarm_state/slot_names`).update({ 
-                    [slotKey]: newName.substring(0, 15).toUpperCase() 
+                // Batch update ensures the auth_pin is checked successfully
+                await db.ref("alarm_state").update({
+                    [`slot_names/${slotKey}`]: newName.substring(0, 15).toUpperCase(),
+                    master_update_time: Date.now(),
+                    auth_pin: validPinPayload
                 });
                 logToTerminal(`Renamed Slot ${slotID} to ${newName}`);
             }
@@ -443,8 +450,14 @@
         async function deleteSlot(slotID) {
             if (!confirm(`Clear audio from Slot ${slotID}?`)) return;
             const slotName = slotID === 0 ? "horn" : `slot${slotID}`;
-            await db.ref(`alarm_state/slots/${slotName}`).update({ version: -1, auth_pin: validPinPayload });
-            await db.ref("alarm_state").update({ master_update_time: Date.now() });
+            
+            // Fixed: Included auth_pin in the same transaction
+            await db.ref("alarm_state").update({
+                [`slots/${slotName}/version`]: -1,
+                master_update_time: Date.now(),
+                auth_pin: validPinPayload
+            });
+
             document.getElementById('upload-status').innerText = `Slot ${slotID} cleared.`;
             document.getElementById('upload-status').style.color = "var(--accent)";
             logToTerminal(`Deleted audio from Slot ${slotID}.`);
@@ -481,8 +494,13 @@
                 await storageRef.put(wavBlob);
                 const downloadURL = await storageRef.getDownloadURL();
 
-                await db.ref(`alarm_state/slots/${slotName}`).update({ url: downloadURL, version: Date.now(), auth_pin: validPinPayload });
-                await db.ref("alarm_state").update({ master_update_time: Date.now() });
+                // Fixed: Included auth_pin directly into the update
+                await db.ref("alarm_state").update({
+                    [`slots/${slotName}/url`]: downloadURL,
+                    [`slots/${slotName}/version`]: Date.now(),
+                    master_update_time: Date.now(),
+                    auth_pin: validPinPayload
+                });
 
                 status.innerText = `Slot ${slotID} Synced successfully!`; status.style.color = "green";
                 logToTerminal(`Uploaded new audio to Slot ${slotID}.`);
@@ -533,7 +551,6 @@
 
         function stopRecording() { if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop(); }
 
-        // --- FIXED: ZOMBIE ONLINE MONITOR ---
         let lastKnownPing = Date.now();
 
         function updateStatusBadge() {
@@ -565,7 +582,6 @@
                 }
             });
 
-            // The internal stopwatch: Checks the connection every 3 seconds!
             setInterval(updateStatusBadge, 3000);
 
             db.ref('system/uptime').on('value', (snapshot) => {
