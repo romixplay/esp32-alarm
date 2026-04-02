@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>UNTITLED~CAFE // 54F3</title>
+    <title>UNTITLED // SAFE</title>
     <link rel="icon" href="data:,">
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-storage-compat.js"></script>
     <style>
-        /* --- STITCH AESTHETIC REDESIGN --- */
+        /* --- DESIGN REDESIGN --- */
         :root { 
             --bg-color: #fdf2f8; 
             --grid-color: #fbcfe8;
@@ -25,6 +25,7 @@
             --terminal-text: #4ade80;
             --border-radius: 12px;
             --border-color: #3f3f46;
+            --purple-accent: #9333ea;
         }
         
         * { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; box-sizing: border-box; }
@@ -35,6 +36,8 @@
             background-color: var(--bg-color); 
             background-image: linear-gradient(var(--grid-color) 1px, transparent 1px), linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
             background-size: 40px 40px;
+            /* 2. BACKGROUND IS FIXED */
+            background-attachment: fixed;
             color: var(--text-main); 
             padding: 0; margin: 0; 
             display: flex; flex-direction: column; align-items: center; 
@@ -48,17 +51,21 @@
         
         .container { max-width: 500px; width: 100%; display: none; padding: 20px 15px; }
         
-        /* STICKY HEADER */
+        /* HEADER LAYOUT */
+        /* Title is not pinned, moving it out of the container */
+        .title-container { width: 100%; padding: 25px 0 10px 0; text-align: center; font-family: sans-serif; font-size: 1.4rem; font-weight: 900; letter-spacing: 2px; text-transform: uppercase; }
+        /* 11. COLORED TITLE ACCENTS */
+        .purple-accent { color: var(--purple-accent); }
+
+        /* 1. STATUS BAR IS PINNED */
         .sticky-header {
             position: sticky; top: 0; z-index: 100;
             background: rgba(253, 242, 248, 0.95);
             backdrop-filter: blur(5px);
-            padding: 15px 0 10px 0;
-            border-bottom: 2px solid var(--border-color);
-            margin-bottom: 20px;
+            padding: 15px 0;
+            margin-bottom: 0px;
             display: flex; flex-direction: column; align-items: center;
         }
-        .header-title { font-family: sans-serif; font-size: 1.3rem; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 15px; text-align: center; }
         .header-controls { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 0 5px; gap: 8px;}
         
         /* STATUS & TOGGLES */
@@ -68,16 +75,33 @@
         .bg-red { background-color: #ef4444; }
 
         .header-switch-group { display: flex; align-items: center; gap: 6px; font-weight: bold; font-size: 0.7rem; }
+        /* 12. REMOVE ICON FROM REFRESH */
         .btn-refresh { background: #e2e8f0; border: 2px solid var(--border-color); border-radius: 8px; padding: 6px 10px; font-family: sans-serif; font-weight: bold; font-size: 0.7rem; cursor: pointer; }
         .btn-refresh:active { background: #cbd5e1; }
+
+        /* 1. SIMPLE BLACK LINE */
+        .header-divider { width: 100%; border: 1px solid black; margin-bottom: 20px;}
 
         /* CARDS */
         .card { border: 2px solid var(--border-color); border-radius: var(--border-radius); padding: 15px; margin-bottom: 20px; background: var(--card-bg); }
         .card > label { font-family: sans-serif; font-weight: 800; font-size: 0.85rem; display: block; margin-bottom: 10px; text-transform: uppercase; }
         
         /* SLIDERS */
-        input[type="range"] { width: 100%; cursor: pointer; margin-bottom: 10px; accent-color: #3b82f6; }
-        
+        /* 3. CENTERED SLIDER HANDLES */
+        input[type="range"] { 
+            width: 100%; cursor: pointer; margin-bottom: 10px; accent-color: #3b82f6; 
+            margin-top: 5px; /* Adjusting track offset */
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #fff;
+            border: 2px solid #3b82f6;
+            margin-top: -6px; /* Centering hack */
+        }
+
         /* BUTTONS */
         .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
         .btn-outline { background: var(--btn-purple-light); border: 2px solid var(--btn-purple); color: white; padding: 12px 5px; font-family: sans-serif; font-weight: bold; font-size: 0.75rem; cursor: pointer; border-radius: 8px; text-align: center; }
@@ -97,11 +121,24 @@
         input:checked + .slider-toggle { background-color: var(--btn-purple); }
         input:checked + .slider-toggle:before { transform: translateX(20px); }
 
+        /* DETAILS ARROW FIX */
         details { padding: 10px; background: #f8fafc; border: 1px dashed var(--border-color); border-radius: 8px; margin-top: 15px; font-family: sans-serif; font-size: 0.85rem;}
-        summary { font-weight: bold; cursor: pointer; outline: none; text-transform: uppercase; }
-        
+        summary { font-weight: bold; cursor: pointer; outline: none; text-transform: uppercase; list-style: none; display: flex; align-items: center; justify-content: space-between;}
+        /* 4 & 9. SIMPLE BLACK ARROWS */
+        summary::after {
+            content: '▼';
+            font-size: 0.8rem;
+            color: black;
+            transition: transform 0.2s;
+        }
+        details[open] summary::after {
+            transform: rotate(180deg);
+        }
+        summary::-webkit-details-marker { display: none; } /* Hide default */
+
         /* TERMINAL */
-        .terminal { background-color: var(--terminal-bg); color: var(--terminal-text); padding: 1rem; font-size: 0.8rem; height: 160px; overflow-y: auto; border-radius: 8px; margin-bottom: 15px; font-family: monospace; line-height: 1.4;}
+        /* 7. CLEAR TERMINAL TEXT */
+        .terminal { background-color: var(--terminal-bg); color: var(--terminal-text); padding: 1rem; font-size: 0.85rem; height: 160px; overflow-y: auto; border-radius: 8px; margin-bottom: 15px; font-family: monospace; line-height: 1.4; text-rendering: optimizeLegibility; }
         
         /* AUDIO LIBRARY GRID */
         #slot-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -128,10 +165,18 @@
         .icon-btn { cursor: pointer; font-size: 0.9rem; background: #f1f5f9; border: 1px solid #cbd5e1; padding: 3px 6px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center;}
         
         .input-group { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-family: sans-serif; font-size: 0.8rem; font-weight: bold;}
-        .input-group input[type="number"] { width: 80px; padding: 5px; font-family: monospace; font-size: 0.9rem; border-radius: 6px; border: 1px solid var(--border-color); text-align: center;}
+        .input-group input[type="text"] { width: 80px; padding: 5px; font-family: monospace; font-size: 0.9rem; border-radius: 6px; border: 1px solid var(--border-color); text-align: center;}
         
         .sys-btn { background: #f1f5f9; border: 2px solid var(--border-color); color: var(--border-color); padding: 10px; font-family: sans-serif; font-weight: bold; border-radius: 8px; cursor: pointer; width: 100%; margin-bottom: 8px;}
         .sys-btn:active { background: #e2e8f0; }
+
+        /* 6. CUSTOM SPIN BUTTONS */
+        .input-group-controls { display: flex; align-items: center; gap: 5px;}
+        .spin-btn { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; cursor: pointer;}
+        .spin-btn:active { background: #e2e8f0; }
+        
+        /* 10. ONE-LINE ALL-CAPS FOOTER */
+        .footer-line { text-align: center; font-family: sans-serif; font-size: 0.75rem; color: #94a3b8; margin-top: 20px; margin-bottom: 30px; text-transform: uppercase; font-weight: normal;}
     </style>
 </head>
 <body>
@@ -145,10 +190,11 @@
 
     <div class="container" id="main-app">
         
+        <div class="title-container">UNTITLED<span class="purple-accent">~</span>CAFE <span class="purple-accent">//</span> SAFE</div>
+
         <div class="sticky-header">
-            <div class="header-title">UNTITLED~CAFE // 54F3</div>
             <div class="header-controls">
-                <button class="btn-refresh" onclick="magicRefresh()">↻ REFRESH</button>
+                <button class="btn-refresh" onclick="magicRefresh()">REFRESH</button>
                 
                 <div class="header-switch-group">
                     <label class="switch"><input type="checkbox" id="amp-toggle-header" checked onchange="syncToggles('amp'); saveSettings()"><span class="slider-toggle"></span></label>
@@ -163,6 +209,7 @@
                 <span id="status-indicator" class="status-badge bg-grey">● OFFLINE</span>
             </div>
         </div>
+        <div class="header-divider"></div>
 
         <div class="card">
             <label>MANUAL ALARM TRIGGER</label>
@@ -229,7 +276,7 @@
                                 
                                 <div class="slot-controls">
                                     <button onclick="previewAudio(${i})" class="btn-sm play-btn" style="font-size: 0.9rem;" title="PRE-LISTEN">🔊</button>
-                                    <button onclick="toggleEdit(${i})" class="btn-sm" style="font-size: 0.9rem;" title="EDIT AUDIO">⚙️</button>
+                                    <button onclick="toggleAllSmallSlotsEdit()" class="btn-sm" style="font-size: 0.9rem;" title="EDIT AUDIO">⚙️</button>
                                 </div>
                                 
                                 <div id="edit-panel-${i}" class="slot-edit-panel" style="display: none;">
@@ -248,17 +295,25 @@
         <div class="card">
             <div class="switch-container" style="margin-bottom: 15px;">
                 <label class="switch"><input type="checkbox" id="periodic-toggle" onchange="syncToggles('beep'); saveSettings()"><span class="slider-toggle"></span></label>
-                <span id="periodic-title">PERIODIC BEEP EVERY 30 SEC</span>
+                <span id="periodic-title">PERIODIC BEEP EVERY 3 SEC</span>
             </div>
             
             <div style="padding-left: 10px; border-left: 3px solid #cbd5e1;">
                 <div class="input-group">
                     <label>INTERVAL (SEC):</label>
-                    <input type="number" id="periodic-sec" value="30" min="1" onchange="updatePeriodicTitle(); saveSettings()">
+                    <div class="input-group-controls">
+                        <span class="spin-btn" onclick="decrementInterval()">▼</span>
+                        <input type="text" id="periodic-sec" value="3" min="1" onchange="updatePeriodicTitle(); saveSettings()">
+                        <span class="spin-btn" onclick="incrementInterval()">▲</span>
+                    </div>
                 </div>
                 <div class="input-group">
                     <label>LENGTH (SEC):</label>
-                    <input type="number" id="periodic-len" value="0.1" step="0.1" min="0.1" onchange="saveSettings()">
+                    <div class="input-group-controls">
+                        <span class="spin-btn" onclick="decrementLength()">▼</span>
+                        <input type="text" id="periodic-len" value="0.1" step="0.1" min="0.1" onchange="saveSettings()">
+                        <span class="spin-btn" onclick="incrementLength()">▲</span>
+                    </div>
                 </div>
 
                 <label style="margin-top: 15px;">BEEP FREQUENCY: <span id="pfreq-val">1000Hz</span></label>
@@ -275,10 +330,10 @@
             
             <div style="display: flex; justify-content: space-between; font-family: sans-serif; font-size: 0.75rem; font-weight: bold; color: #64748b; margin-bottom: 15px;">
                 <span>UPTIME: <span id="sys-uptime">0h 0m</span></span>
-                <span id="fw-version">FW: 260402221317</span>
+                <span id="fw-version">FW: 260402224547</span>
             </div>
             
-            <button class="sys-btn" onclick="clearLogs()">CLEAR LOG WINDOW</button>
+            <button class="sys-btn" onclick="clearLogs()">LOG OUT / CLEAR CACHE</button>
 
             <details>
                 <summary>SYSTEM ACTIONS</summary>
@@ -290,10 +345,8 @@
             </details>
         </div>
         
-        <div style="text-align: center; font-family: monospace; font-size: 0.75rem; color: #94a3b8; margin-top: 20px; margin-bottom: 30px;">
-            DESIGNED & ENGINEERED BY<br>
-            <span style="color: var(--text-main); font-weight: bold; font-size: 0.9rem; font-family: sans-serif;">ROMAN GODISH</span><br>
-            HFA • 2026
+        <div class="footer-line">
+            DESIGNED AND ENGINEERED BY ROMAN GODISH . HFA . 2026
         </div>
     </div>
 
@@ -310,7 +363,6 @@
         let sessionPasscode = "";
         let validPinPayload = null; 
         
-        // --- LOCAL STORAGE LOG HISTORY ---
         let logHistory = JSON.parse(localStorage.getItem("cafe_log_history")) || [];
 
         window.onload = function() {
@@ -319,7 +371,7 @@
                 document.getElementById('passcode-input').value = savedPin;
                 login();
             }
-            renderLogs(); // Show saved logs immediately
+            renderLogs();
         };
 
         function addLogToUI(msg) {
@@ -345,14 +397,13 @@
             const d = new Date();
             const timeStr = d.toTimeString().split(' ')[0];
             const fullMsg = `[WEB - ${timeStr}] ${msg}`;
-            addLogToUI(fullMsg); // Save locally
+            addLogToUI(fullMsg);
             db.ref("system").update({
                 latest_log: fullMsg,
                 auth_pin: validPinPayload
             }).catch(err => console.error("Log write failed:", err));
         }
 
-        // Keep header and main toggles in sync
         function syncToggles(type) {
             if (type === 'amp') {
                 const headerState = document.getElementById('amp-toggle-header').checked;
@@ -360,7 +411,6 @@
             } else if (type === 'beep') {
                 const headerChecked = document.getElementById('periodic-toggle-header').checked;
                 const mainChecked = document.getElementById('periodic-toggle').checked;
-                // Determine which one was clicked by seeing which is out of sync with the other, then align them
                 if (headerChecked !== mainChecked) {
                     document.getElementById('periodic-toggle-header').checked = headerChecked;
                     document.getElementById('periodic-toggle').checked = headerChecked;
@@ -380,9 +430,14 @@
             location.reload();
         }
 
-        function toggleEdit(slotID) {
-            const panel = document.getElementById(`edit-panel-${slotID}`);
-            panel.style.display = panel.style.display === "none" ? "flex" : "none";
+        // 5. GLOBAL TOGGLE FOR SMALL SLOTS
+        function toggleAllSmallSlotsEdit() {
+            for (let i = 1; i <= 4; i++) {
+                const panel = document.getElementById(`edit-panel-${i}`);
+                if (panel) {
+                    panel.style.display = panel.style.display === "none" ? "flex" : "none";
+                }
+            }
         }
 
         async function login() {
@@ -417,7 +472,6 @@
                 payload.auth_pin = validPinPayload; 
                 payload.master_update_time = Date.now(); 
 
-                // Inject amp state if changed from header
                 if (window.ampStateBuffer !== undefined) {
                     payload.amp_enabled = window.ampStateBuffer;
                 }
@@ -503,10 +557,7 @@
 
         function updatePeriodicTitle() {
             const sec = document.getElementById('periodic-sec').value;
-            const len = document.getElementById('periodic-len').value;
-            const freq = document.getElementById('periodic-freq').value;
-            const vol = document.getElementById('periodic-vol').value;
-            document.getElementById('periodic-title').innerText = `PERIODIC BEEP EVERY ${sec}s`;
+            document.getElementById('periodic-title').innerText = `PERIODIC BEEP EVERY ${sec} SEC`;
         }
 
         async function saveSettings() {
@@ -519,12 +570,36 @@
                 siren_max: parseInt(document.getElementById('siren-max').value),
                 siren_speed: parseInt(document.getElementById('siren-speed').value),
                 periodic_active: document.getElementById('periodic-toggle').checked, 
-                periodic_sec: parseInt(document.getElementById('periodic-sec').value),
+                periodic_sec: parseFloat(document.getElementById('periodic-sec').value), 
                 periodic_vol: parseInt(document.getElementById('periodic-vol').value), 
                 periodic_freq: parseInt(document.getElementById('periodic-freq').value),
                 periodic_len: parseFloat(document.getElementById('periodic-len').value), 
                 amp_enabled: document.getElementById('amp-toggle-header').checked
             });
+        }
+
+        // 6. SPIN BUTTON LOGIC
+        function incrementInterval() {
+            const el = document.getElementById('periodic-sec');
+            el.value = (parseFloat(el.value) || 0) + 1;
+            updatePeriodicTitle(); saveSettings();
+        }
+        function decrementInterval() {
+            const el = document.getElementById('periodic-sec');
+            let val = (parseFloat(el.value) || 0) - 1;
+            el.value = val < 1 ? 1 : val; // min 1 sec
+            updatePeriodicTitle(); saveSettings();
+        }
+        function incrementLength() {
+            const el = document.getElementById('periodic-len');
+            el.value = ((parseFloat(el.value) || 0) + 0.1).toFixed(1);
+            saveSettings();
+        }
+        function decrementLength() {
+            const el = document.getElementById('periodic-len');
+            let val = ((parseFloat(el.value) || 0) - 0.1).toFixed(1);
+            el.value = val < 0.1 ? 0.1 : val; // min 0.1 sec
+            saveSettings();
         }
 
         async function triggerAlarm(seconds) { await sendCommand("trigger_alarm", { duration: seconds }); }
@@ -578,7 +653,7 @@
 
         async function deleteSlot(slotID) {
             if (!confirm(`Clear audio from Slot ${slotID}?`)) return;
-            const slotName = slotID === 0 ? "horn" : `slot${slotID}`;
+            const slotName = slotID === 0 ? "horn" : `slot${slotName}`;
             
             await db.ref("alarm_state").update({
                 [`slots/${slotName}/version`]: -1,
@@ -589,7 +664,7 @@
             document.getElementById('upload-status').innerText = `Slot ${slotID} cleared.`;
             document.getElementById('upload-status').style.color = "var(--btn-solid)";
             logToTerminal(`Deleted audio from Slot ${slotID}.`);
-            if(slotID !== 0) toggleEdit(slotID); // Close drawer
+            // Global toggle handled in small slot function, slot 0 shouldn't trigger toggle.
         }
 
         function uploadToSlot(event, slotID) {
@@ -611,7 +686,6 @@
                     status.innerText = "Error: Audio exceeds 10s limit."; status.style.color = "red"; return;
                 }
 
-                // GAIN BOOSTER: 250% Volume Increase
                 const offlineCtx = new OfflineAudioContext(1, decodedAudio.duration * 8000, 8000);
                 const source = offlineCtx.createBufferSource();
                 source.buffer = decodedAudio; 
@@ -641,7 +715,7 @@
 
                 status.innerText = `Slot ${slotID} Synced successfully!`; status.style.color = "green";
                 logToTerminal(`Uploaded new audio to Slot ${slotID}.`);
-                if(slotID !== 0) toggleEdit(slotID); // Close drawer
+                toggleAllSmallSlotsEdit();
             } catch (e) {
                 status.innerText = "Upload failed."; status.style.color = "red"; console.error(e);
                 logToTerminal(`Upload failed for Slot ${slotID}. Check console.`);
