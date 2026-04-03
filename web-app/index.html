@@ -5,147 +5,138 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>UNTITLED // SAFE</title>
     <link rel="icon" href="data:,">
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=PT+Mono&display=swap" rel="stylesheet">
+    
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-storage-compat.js"></script>
     <style>
-        /* --- DESIGN REDESIGN --- */
         :root { 
             --bg-color: #fdf2f8; 
             --grid-color: #fbcfe8;
             --card-bg: #ffffff;
             --text-main: #000000; 
-            --text-accent: #000000;
             --btn-solid: #e11d48;
-            --btn-outline: #e11d48;
             --btn-purple: #9333ea;
-            --btn-purple-light: #c084fc;
+            --btn-purple-muted: #b596e8; /* 10. LESS BRIGHT BUTTONS */
             --btn-pink-light: #f472b6;
-            --terminal-bg: #374151;
-            --terminal-text: #4ade80;
             --border-radius: 12px;
-            --border-color: #3f3f46;
+            --border-color: #000000; /* Darkened borders for better contrast */
             --purple-accent: #9333ea;
         }
         
-        * { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; box-sizing: border-box; }
+        * { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; box-sizing: border-box; text-transform: uppercase; }
         input, .terminal { -webkit-user-select: text; user-select: text; } 
         
+        /* 4. APPLY PT MONO & 8. STATIC BACKGROUND TRICK */
         body { 
-            font-family: monospace; 
+            font-family: 'PT Mono', monospace; 
             background-color: var(--bg-color); 
-            background-image: linear-gradient(var(--grid-color) 1px, transparent 1px), linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
-            background-size: 40px 40px;
-            /* 2. BACKGROUND IS FIXED */
-            background-attachment: fixed;
             color: var(--text-main); 
             padding: 0; margin: 0; 
             display: flex; flex-direction: column; align-items: center; 
         }
         
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-image: linear-gradient(var(--grid-color) 1px, transparent 1px), linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+            background-size: 40px 40px;
+            z-index: -1;
+        }
+        
         /* AUTH SCREEN */
         #auth-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #f8fafc; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 1000; }
-        #auth-screen h2 { font-family: sans-serif; font-weight: 900; letter-spacing: -1px; text-transform: uppercase; font-size: 1.5rem; margin-bottom: 20px;}
-        #auth-screen input { padding: 15px; font-family: monospace; font-size: 1.5rem; text-align: center; border: 4px solid var(--btn-purple); border-radius: 30px; background: white; color: black; width: 250px; margin-bottom: 20px; box-shadow: 0 0 15px rgba(147, 51, 234, 0.4); outline: none;}
-        #auth-screen button { padding: 15px 20px; font-family: sans-serif; font-size: 1.2rem; cursor: pointer; background: var(--btn-solid); color: white; border: none; border-radius: 10px; font-weight: bold; width: 250px;}
+        #auth-screen h2 { font-weight: 900; letter-spacing: -1px; font-size: 1.5rem; margin-bottom: 20px;}
+        #auth-screen input { padding: 15px; font-family: 'PT Mono', monospace; font-size: 1.5rem; text-align: center; border: 4px solid var(--btn-purple); border-radius: 30px; background: white; color: black; width: 250px; margin-bottom: 20px; outline: none;}
+        #auth-screen button { padding: 15px 20px; font-size: 1.2rem; cursor: pointer; background: var(--btn-solid); color: white; border: none; border-radius: 10px; font-weight: bold; width: 250px;}
         
-        .container { max-width: 500px; width: 100%; display: none; padding: 20px 15px; }
+        .container { max-width: 500px; width: 100%; display: none; padding: 0 15px; }
         
-        /* HEADER LAYOUT */
-        /* Title is not pinned, moving it out of the container */
-        .title-container { width: 100%; padding: 25px 0 10px 0; text-align: center; font-family: sans-serif; font-size: 1.4rem; font-weight: 900; letter-spacing: 2px; text-transform: uppercase; }
-        /* 11. COLORED TITLE ACCENTS */
+        .title-container { width: 100%; padding: 25px 0 15px 0; text-align: center; font-size: 1.4rem; font-weight: 900; letter-spacing: 2px; }
         .purple-accent { color: var(--purple-accent); }
 
-        /* 1. STATUS BAR IS PINNED */
+        /* 1 & 2. PINNED STATUS BAR WITH DIVIDERS */
         .sticky-header {
             position: sticky; top: 0; z-index: 100;
             background: rgba(253, 242, 248, 0.95);
             backdrop-filter: blur(5px);
-            padding: 15px 0;
-            margin-bottom: 0px;
+            padding: 12px 0;
+            margin-bottom: 20px;
             display: flex; flex-direction: column; align-items: center;
+            border-top: 2px solid var(--text-main);
+            border-bottom: 2px solid var(--text-main);
         }
-        .header-controls { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 0 5px; gap: 8px;}
+        .header-controls { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 0 2px; gap: 8px;}
         
-        /* STATUS & TOGGLES */
-        .status-badge { padding: 6px 12px; font-weight: bold; border-radius: 20px; border: 2px solid transparent; font-size: 0.75rem; font-family: sans-serif; text-transform: uppercase; color: white;}
+        .status-badge { padding: 6px 12px; font-weight: bold; border-radius: 20px; border: 2px solid transparent; font-size: 0.75rem; color: white;}
         .bg-grey { background-color: #94a3b8; }
         .bg-green { background-color: #10b981; }
         .bg-red { background-color: #ef4444; }
 
         .header-switch-group { display: flex; align-items: center; gap: 6px; font-weight: bold; font-size: 0.7rem; }
-        /* 12. REMOVE ICON FROM REFRESH */
-        .btn-refresh { background: #e2e8f0; border: 2px solid var(--border-color); border-radius: 8px; padding: 6px 10px; font-family: sans-serif; font-weight: bold; font-size: 0.7rem; cursor: pointer; }
+        .btn-refresh { background: #e2e8f0; border: 2px solid var(--border-color); border-radius: 8px; padding: 6px 10px; font-family: 'PT Mono', monospace; font-weight: bold; font-size: 0.7rem; cursor: pointer; }
         .btn-refresh:active { background: #cbd5e1; }
-
-        /* 1. SIMPLE BLACK LINE */
-        .header-divider { width: 100%; border: 1px solid black; margin-bottom: 20px;}
 
         /* CARDS */
         .card { border: 2px solid var(--border-color); border-radius: var(--border-radius); padding: 15px; margin-bottom: 20px; background: var(--card-bg); }
-        .card > label { font-family: sans-serif; font-weight: 800; font-size: 0.85rem; display: block; margin-bottom: 10px; text-transform: uppercase; }
+        .card > label { font-weight: 800; font-size: 0.85rem; display: block; margin-bottom: 10px; }
         
-        /* SLIDERS */
-        /* 3. CENTERED SLIDER HANDLES */
+        /* 3. FIXED SLIDERS */
         input[type="range"] { 
-            width: 100%; cursor: pointer; margin-bottom: 10px; accent-color: #3b82f6; 
-            margin-top: 5px; /* Adjusting track offset */
+            -webkit-appearance: none; width: 100%; background: transparent; height: 24px; cursor: pointer; margin-bottom: 5px;
+        }
+        input[type="range"]::-webkit-slider-runnable-track {
+            width: 100%; height: 6px; background: #cbd5e1; border-radius: 3px;
         }
         input[type="range"]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            height: 16px;
-            width: 16px;
-            border-radius: 50%;
-            background: #fff;
-            border: 2px solid #3b82f6;
-            margin-top: -6px; /* Centering hack */
+            -webkit-appearance: none; height: 18px; width: 18px; border-radius: 50%;
+            background: #ffffff; border: 2px solid var(--purple-accent);
+            margin-top: -6px; /* Mathematically centers thumb over track */
         }
 
         /* BUTTONS */
         .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
-        .btn-outline { background: var(--btn-purple-light); border: 2px solid var(--btn-purple); color: white; padding: 12px 5px; font-family: sans-serif; font-weight: bold; font-size: 0.75rem; cursor: pointer; border-radius: 8px; text-align: center; }
+        .btn-outline { background: var(--btn-purple-muted); color: white; border: none; padding: 12px 5px; font-family: 'PT Mono', monospace; font-weight: bold; font-size: 0.75rem; cursor: pointer; border-radius: 8px; text-align: center; }
         .btn-outline:active { background: var(--btn-purple); }
         
-        .btn-solid { background: var(--btn-purple); color: white; border: none; padding: 15px; font-family: sans-serif; font-weight: bold; width: 100%; cursor: pointer; text-align: center; border-radius: 8px; }
+        .btn-solid { background: var(--btn-purple); color: white; border: none; padding: 15px; font-family: 'PT Mono', monospace; font-weight: bold; width: 100%; cursor: pointer; text-align: center; border-radius: 8px; }
         .btn-solid:active { opacity: 0.8; }
         .btn-stop { background: var(--btn-pink-light); border: 2px solid var(--btn-solid); color: white; }
         .btn-stop:active { background: var(--btn-solid); }
 
-        /* SWITCHES */
-        .switch-container { display: flex; align-items: center; gap: 10px; font-weight: bold; font-size: 0.8rem; font-family: sans-serif;}
+        /* 3. FIXED TOGGLES */
+        .switch-container { display: flex; align-items: center; gap: 10px; font-weight: bold; font-size: 0.8rem; }
         .switch { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
         .switch input { opacity: 0; width: 0; height: 0; }
-        .slider-toggle { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #94a3b8; transition: .3s; border-radius: 24px; border: 2px solid transparent; }
-        .slider-toggle:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%; }
+        .slider-toggle { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #94a3b8; transition: .3s; border-radius: 24px; }
+        .slider-toggle:before { 
+            position: absolute; content: ""; height: 18px; width: 18px; left: 3px; 
+            top: 50%; transform: translateY(-50%); /* Pixel-perfect vertical centering */
+            background-color: white; transition: .3s; border-radius: 50%; 
+        }
         input:checked + .slider-toggle { background-color: var(--btn-purple); }
-        input:checked + .slider-toggle:before { transform: translateX(20px); }
+        input:checked + .slider-toggle:before { transform: translate(20px, -50%); }
 
-        /* DETAILS ARROW FIX */
-        details { padding: 10px; background: #f8fafc; border: 1px dashed var(--border-color); border-radius: 8px; margin-top: 15px; font-family: sans-serif; font-size: 0.85rem;}
-        summary { font-weight: bold; cursor: pointer; outline: none; text-transform: uppercase; list-style: none; display: flex; align-items: center; justify-content: space-between;}
-        /* 4 & 9. SIMPLE BLACK ARROWS */
-        summary::after {
-            content: '▼';
-            font-size: 0.8rem;
-            color: black;
-            transition: transform 0.2s;
-        }
-        details[open] summary::after {
-            transform: rotate(180deg);
-        }
-        summary::-webkit-details-marker { display: none; } /* Hide default */
+        details { padding: 10px; background: #f8fafc; border: 1px dashed var(--border-color); border-radius: 8px; margin-top: 15px; font-size: 0.85rem;}
+        summary { font-weight: bold; cursor: pointer; outline: none; list-style: none; display: flex; align-items: center; justify-content: space-between;}
+        summary::after { content: '▼'; font-size: 0.8rem; color: black; transition: transform 0.2s; }
+        details[open] summary::after { transform: rotate(180deg); }
+        summary::-webkit-details-marker { display: none; }
 
-        /* TERMINAL */
-        /* 7. CLEAR TERMINAL TEXT */
-        .terminal { background-color: var(--terminal-bg); color: var(--terminal-text); padding: 1rem; font-size: 0.85rem; height: 160px; overflow-y: auto; border-radius: 8px; margin-bottom: 15px; font-family: monospace; line-height: 1.4; text-rendering: optimizeLegibility; }
+        /* 5. RESTORED TERMINAL CONTRAST */
+        .terminal { background-color: #111; color: #0f0; padding: 1rem; font-size: 0.8rem; height: 160px; overflow-y: auto; border-radius: 8px; margin-bottom: 15px; line-height: 1.4; border: 2px solid var(--border-color); text-transform: none; }
         
         /* AUDIO LIBRARY GRID */
         #slot-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         .slot-card { background: #f8fafc; border: 2px solid var(--border-color); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; }
-        .slot-card h4 { margin: 0 0 10px 0; font-family: sans-serif; font-size: 0.85rem; font-weight: 800; display: flex; justify-content: space-between; align-items: center; text-transform: uppercase;}
+        .slot-card h4 { margin: 0 0 10px 0; font-size: 0.85rem; font-weight: 800; display: flex; justify-content: space-between; align-items: center;}
         
-        .btn-main-play { width: 100%; height: 40px; margin-bottom: 8px; background: white; border: 2px solid var(--border-color); border-radius: 6px; font-family: sans-serif; font-weight: bold; cursor: pointer; transition: 0.1s; }
+        .btn-main-play { width: 100%; height: 40px; margin-bottom: 8px; background: white; border: 2px solid var(--border-color); border-radius: 6px; font-family: 'PT Mono', monospace; font-weight: bold; cursor: pointer; transition: 0.1s; }
         .btn-main-play:active { background: var(--border-color); color: white; }
 
         .slot-controls { display: flex; justify-content: space-between; gap: 6px; margin-bottom: 6px; height: 34px;}
@@ -154,29 +145,29 @@
         .btn-sm { 
             flex: 1 1 0; height: 100%; border-radius: 6px;
             display: flex; align-items: center; justify-content: center; 
-            font-size: 0.65rem; background: var(--border-color); color: white; border: none; cursor: pointer; font-family: sans-serif; font-weight: bold; 
+            font-size: 0.65rem; background: var(--border-color); color: white; border: none; cursor: pointer; font-family: 'PT Mono', monospace; font-weight: bold; 
         }
         .btn-sm.mic-btn { background: #64748b; }
-        .btn-sm.del-btn { background: var(--btn-solid); opacity: 0.8;}
-        .btn-sm.play-btn { background: var(--btn-purple-light); }
+        .btn-sm.del-btn { background: var(--btn-solid); opacity: 0.9;}
+        .btn-sm.play-btn { background: var(--btn-purple-muted); }
         .btn-sm:active { opacity: 0.7; }
         .btn-sm-label { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; cursor: pointer; }
         
-        .icon-btn { cursor: pointer; font-size: 0.9rem; background: #f1f5f9; border: 1px solid #cbd5e1; padding: 3px 6px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center;}
+        .icon-btn { cursor: pointer; background: #f1f5f9; border: 1px solid #cbd5e1; padding: 4px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center;}
         
-        .input-group { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-family: sans-serif; font-size: 0.8rem; font-weight: bold;}
-        .input-group input[type="text"] { width: 80px; padding: 5px; font-family: monospace; font-size: 0.9rem; border-radius: 6px; border: 1px solid var(--border-color); text-align: center;}
+        .input-group { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 0.8rem; font-weight: bold;}
+        .input-group input[type="text"] { width: 60px; padding: 5px; font-family: 'PT Mono', monospace; font-size: 0.9rem; border-radius: 6px; border: 1px solid var(--border-color); text-align: center;}
         
-        .sys-btn { background: #f1f5f9; border: 2px solid var(--border-color); color: var(--border-color); padding: 10px; font-family: sans-serif; font-weight: bold; border-radius: 8px; cursor: pointer; width: 100%; margin-bottom: 8px;}
+        .sys-btn { background: #f1f5f9; border: 2px solid var(--border-color); color: var(--border-color); padding: 10px; font-family: 'PT Mono', monospace; font-weight: bold; border-radius: 8px; cursor: pointer; width: 100%; margin-bottom: 8px;}
         .sys-btn:active { background: #e2e8f0; }
 
-        /* 6. CUSTOM SPIN BUTTONS */
+        /* 7. LEFT/RIGHT ARROW SPINNERS */
         .input-group-controls { display: flex; align-items: center; gap: 5px;}
-        .spin-btn { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; cursor: pointer;}
+        .spin-btn { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; width: 25px; height: 28px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; cursor: pointer;}
         .spin-btn:active { background: #e2e8f0; }
         
-        /* 10. ONE-LINE ALL-CAPS FOOTER */
-        .footer-line { text-align: center; font-family: sans-serif; font-size: 0.75rem; color: #94a3b8; margin-top: 20px; margin-bottom: 30px; text-transform: uppercase; font-weight: normal;}
+        /* 11. SOLID FOOTER BACKGROUND */
+        .footer-line { background-color: var(--bg-color); width: 100%; text-align: center; font-size: 0.75rem; color: #64748b; padding: 20px 0 30px 0;}
     </style>
 </head>
 <body>
@@ -185,7 +176,7 @@
         <h2>ENTER SYSTEM PASSCODE</h2>
         <input type="password" id="passcode-input" placeholder="****" onkeypress="if(event.key === 'Enter') login()">
         <button id="auth-btn" onclick="login()">AUTHENTICATE</button>
-        <p id="auth-error" style="color: red; display: none; margin-top:10px; font-family: sans-serif; font-weight: bold;">INVALID PASSCODE</p>
+        <p id="auth-error" style="color: red; display: none; font-weight: bold;">INVALID PASSCODE</p>
     </div>
 
     <div class="container" id="main-app">
@@ -197,19 +188,18 @@
                 <button class="btn-refresh" onclick="magicRefresh()">REFRESH</button>
                 
                 <div class="header-switch-group">
-                    <label class="switch"><input type="checkbox" id="amp-toggle-header" checked onchange="syncToggles('amp'); saveSettings()"><span class="slider-toggle"></span></label>
+                    <label class="switch"><input type="checkbox" id="amp-toggle-header" checked onchange="syncAmp(); saveSettings()"><span class="slider-toggle"></span></label>
                     <span>SOUND</span>
                 </div>
                 
                 <div class="header-switch-group">
-                    <label class="switch"><input type="checkbox" id="periodic-toggle-header" onchange="syncToggles('beep'); saveSettings()"><span class="slider-toggle"></span></label>
+                    <label class="switch"><input type="checkbox" id="periodic-toggle-header" onchange="toggleBeep('periodic-toggle-header')"><span class="slider-toggle"></span></label>
                     <span>BEEP</span>
                 </div>
 
                 <span id="status-indicator" class="status-badge bg-grey">● OFFLINE</span>
             </div>
         </div>
-        <div class="header-divider"></div>
 
         <div class="card">
             <label>MANUAL ALARM TRIGGER</label>
@@ -253,7 +243,9 @@
                 <div class="slot-card" style="grid-column: 1 / -1; border-color: var(--btn-solid); border-width: 3px;">
                     <h4 style="color: var(--btn-solid); font-size: 1rem;">
                         <span id="name-slot0">JAMAICAN HORN (SLOT 0)</span> 
-                        <span class="icon-btn" onclick="renameSlot(0)" title="Rename Slot">✎</span>
+                        <span class="icon-btn" onclick="renameSlot(0)" title="Rename Slot">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                        </span>
                     </h4>
                     <button id="btn-play-0" onclick="triggerSlot(0)" class="btn-main-play" style="height: 50px; background: var(--btn-solid); color: white; border-color: transparent; font-size: 1.1rem;">PLAY</button>
                     <div class="slot-controls" style="height: 40px;">
@@ -265,24 +257,31 @@
                 </div>
 
                 <script>
+                    const svgEdit = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>`;
+                    const svgPlay = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3" fill="currentColor"></polygon></svg>`;
+                    const svgGear = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`;
+                    const svgUpload = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>`;
+                    const svgMic = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>`;
+                    const svgTrash = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
+
                     for(let i=1; i<=4; i++) {
                         document.write(`
                             <div class="slot-card">
                                 <h4>
                                     <span id="name-slot${i}">SLOT ${i}</span> 
-                                    <span class="icon-btn" onclick="renameSlot(${i})" title="Rename Slot">✎</span>
+                                    <span class="icon-btn" onclick="renameSlot(${i})">${svgEdit}</span>
                                 </h4>
                                 <button id="btn-play-${i}" onclick="triggerSlot(${i})" class="btn-main-play">PLAY</button>
                                 
                                 <div class="slot-controls">
-                                    <button onclick="previewAudio(${i})" class="btn-sm play-btn" style="font-size: 0.9rem;" title="PRE-LISTEN">🔊</button>
-                                    <button onclick="toggleAllSmallSlotsEdit()" class="btn-sm" style="font-size: 0.9rem;" title="EDIT AUDIO">⚙️</button>
+                                    <button onclick="previewAudio(${i})" class="btn-sm play-btn">${svgPlay}</button>
+                                    <button onclick="toggleAllSmallSlotsEdit()" class="btn-sm">${svgGear}</button>
                                 </div>
                                 
                                 <div id="edit-panel-${i}" class="slot-edit-panel" style="display: none;">
-                                    <label class="btn-sm" title="UPLOAD NEW"><div class="btn-sm-label" style="font-size: 1rem;">📁<input type="file" hidden accept="audio/mp3, audio/wav, audio/m4a, audio/x-m4a, audio/aac" onchange="uploadToSlot(event, ${i})"></div></label>
-                                    <button onmousedown="startRecording(${i})" onmouseup="stopRecording()" ontouchstart="startRecording(${i})" ontouchend="stopRecording()" class="btn-sm mic-btn" style="font-size: 1rem;" title="HOLD TO RECORD">🎙️</button>
-                                    <button onclick="deleteSlot(${i})" class="btn-sm del-btn" style="font-size: 1rem;" title="DELETE">🗑️</button>
+                                    <label class="btn-sm"><div class="btn-sm-label">${svgUpload}<input type="file" hidden accept="audio/mp3, audio/wav, audio/m4a, audio/x-m4a, audio/aac" onchange="uploadToSlot(event, ${i})"></div></label>
+                                    <button onmousedown="startRecording(${i})" onmouseup="stopRecording()" ontouchstart="startRecording(${i})" ontouchend="stopRecording()" class="btn-sm mic-btn">${svgMic}</button>
+                                    <button onclick="deleteSlot(${i})" class="btn-sm del-btn">${svgTrash}</button>
                                 </div>
                             </div>
                         `);
@@ -294,7 +293,7 @@
 
         <div class="card">
             <div class="switch-container" style="margin-bottom: 15px;">
-                <label class="switch"><input type="checkbox" id="periodic-toggle" onchange="syncToggles('beep'); saveSettings()"><span class="slider-toggle"></span></label>
+                <label class="switch"><input type="checkbox" id="periodic-toggle" onchange="toggleBeep('periodic-toggle')"><span class="slider-toggle"></span></label>
                 <span id="periodic-title">PERIODIC BEEP EVERY 3 SEC</span>
             </div>
             
@@ -302,17 +301,17 @@
                 <div class="input-group">
                     <label>INTERVAL (SEC):</label>
                     <div class="input-group-controls">
-                        <span class="spin-btn" onclick="decrementInterval()">▼</span>
+                        <span class="spin-btn" onclick="decrementInterval()">&lt;</span>
                         <input type="text" id="periodic-sec" value="3" min="1" onchange="updatePeriodicTitle(); saveSettings()">
-                        <span class="spin-btn" onclick="incrementInterval()">▲</span>
+                        <span class="spin-btn" onclick="incrementInterval()">&gt;</span>
                     </div>
                 </div>
                 <div class="input-group">
                     <label>LENGTH (SEC):</label>
                     <div class="input-group-controls">
-                        <span class="spin-btn" onclick="decrementLength()">▼</span>
+                        <span class="spin-btn" onclick="decrementLength()">&lt;</span>
                         <input type="text" id="periodic-len" value="0.1" step="0.1" min="0.1" onchange="saveSettings()">
-                        <span class="spin-btn" onclick="incrementLength()">▲</span>
+                        <span class="spin-btn" onclick="incrementLength()">&gt;</span>
                     </div>
                 </div>
 
@@ -328,12 +327,12 @@
             <label style="margin-bottom: 10px;">SYSTEM LOGS</label>
             <div class="terminal" id="live-log">Loading system logs...</div>
             
-            <div style="display: flex; justify-content: space-between; font-family: sans-serif; font-size: 0.75rem; font-weight: bold; color: #64748b; margin-bottom: 15px;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.75rem; font-weight: bold; color: #64748b; margin-bottom: 15px;">
                 <span>UPTIME: <span id="sys-uptime">0h 0m</span></span>
-                <span id="fw-version">FW: 260402224547</span>
+                <span id="fw-version">FW: 260403164203</span>
             </div>
             
-            <button class="sys-btn" onclick="clearLogs()">LOG OUT / CLEAR CACHE</button>
+            <button class="sys-btn" onclick="logout()">LOG OUT / CLEAR CACHE</button>
 
             <details>
                 <summary>SYSTEM ACTIONS</summary>
@@ -346,7 +345,7 @@
         </div>
         
         <div class="footer-line">
-            DESIGNED AND ENGINEERED BY ROMAN GODISH . HFA . 2026
+            DESIGNED AND ENGINEERED BY ROMAN GODISH &middot; 2026
         </div>
     </div>
 
@@ -386,12 +385,6 @@
             logBox.innerHTML = logHistory.join('<br>');
             logBox.scrollTop = logBox.scrollHeight; 
         }
-        
-        function clearLogs() {
-            logHistory = [];
-            localStorage.setItem("cafe_log_history", JSON.stringify(logHistory));
-            renderLogs();
-        }
 
         function logToTerminal(msg) {
             const d = new Date();
@@ -404,18 +397,17 @@
             }).catch(err => console.error("Log write failed:", err));
         }
 
-        function syncToggles(type) {
-            if (type === 'amp') {
-                const headerState = document.getElementById('amp-toggle-header').checked;
-                window.ampStateBuffer = headerState; 
-            } else if (type === 'beep') {
-                const headerChecked = document.getElementById('periodic-toggle-header').checked;
-                const mainChecked = document.getElementById('periodic-toggle').checked;
-                if (headerChecked !== mainChecked) {
-                    document.getElementById('periodic-toggle-header').checked = headerChecked;
-                    document.getElementById('periodic-toggle').checked = headerChecked;
-                }
-            }
+        function syncAmp() {
+            const headerState = document.getElementById('amp-toggle-header').checked;
+            window.ampStateBuffer = headerState; 
+        }
+        
+        // 12. UNIFIED BEEP TOGGLE
+        function toggleBeep(sourceID) {
+            const isChecked = document.getElementById(sourceID).checked;
+            document.getElementById('periodic-toggle-header').checked = isChecked;
+            document.getElementById('periodic-toggle').checked = isChecked;
+            saveSettings();
         }
 
         async function magicRefresh() {
@@ -430,7 +422,6 @@
             location.reload();
         }
 
-        // 5. GLOBAL TOGGLE FOR SMALL SLOTS
         function toggleAllSmallSlotsEdit() {
             for (let i = 1; i <= 4; i++) {
                 const panel = document.getElementById(`edit-panel-${i}`);
@@ -465,6 +456,12 @@
                 btn.innerText = "AUTHENTICATE"; err.style.display = 'block';
                 localStorage.removeItem("system_pin");
             }
+        }
+
+        // 6. RESTORED LOGOUT FUNCTION
+        function logout() { 
+            localStorage.removeItem("system_pin"); 
+            location.reload(); 
         }
 
         async function sendCommand(action, payload = {}) {
@@ -578,7 +575,6 @@
             });
         }
 
-        // 6. SPIN BUTTON LOGIC
         function incrementInterval() {
             const el = document.getElementById('periodic-sec');
             el.value = (parseFloat(el.value) || 0) + 1;
@@ -587,7 +583,7 @@
         function decrementInterval() {
             const el = document.getElementById('periodic-sec');
             let val = (parseFloat(el.value) || 0) - 1;
-            el.value = val < 1 ? 1 : val; // min 1 sec
+            el.value = val < 1 ? 1 : val; 
             updatePeriodicTitle(); saveSettings();
         }
         function incrementLength() {
@@ -598,7 +594,7 @@
         function decrementLength() {
             const el = document.getElementById('periodic-len');
             let val = ((parseFloat(el.value) || 0) - 0.1).toFixed(1);
-            el.value = val < 0.1 ? 0.1 : val; // min 0.1 sec
+            el.value = val < 0.1 ? 0.1 : val; 
             saveSettings();
         }
 
@@ -653,7 +649,7 @@
 
         async function deleteSlot(slotID) {
             if (!confirm(`Clear audio from Slot ${slotID}?`)) return;
-            const slotName = slotID === 0 ? "horn" : `slot${slotName}`;
+            const slotName = slotID === 0 ? "horn" : `slot${slotID}`;
             
             await db.ref("alarm_state").update({
                 [`slots/${slotName}/version`]: -1,
@@ -664,7 +660,6 @@
             document.getElementById('upload-status').innerText = `Slot ${slotID} cleared.`;
             document.getElementById('upload-status').style.color = "var(--btn-solid)";
             logToTerminal(`Deleted audio from Slot ${slotID}.`);
-            // Global toggle handled in small slot function, slot 0 shouldn't trigger toggle.
         }
 
         function uploadToSlot(event, slotID) {
@@ -715,7 +710,7 @@
 
                 status.innerText = `Slot ${slotID} Synced successfully!`; status.style.color = "green";
                 logToTerminal(`Uploaded new audio to Slot ${slotID}.`);
-                toggleAllSmallSlotsEdit();
+                if(slotID !== 0) toggleAllSmallSlotsEdit();
             } catch (e) {
                 status.innerText = "Upload failed."; status.style.color = "red"; console.error(e);
                 logToTerminal(`Upload failed for Slot ${slotID}. Check console.`);
