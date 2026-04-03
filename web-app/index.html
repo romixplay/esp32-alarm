@@ -21,17 +21,16 @@
             --text-main: #000000; 
             --btn-solid: #e11d48;
             --btn-purple: #9333ea;
-            --btn-purple-muted: #b596e8; /* 10. LESS BRIGHT BUTTONS */
+            --btn-purple-muted: #b596e8; 
             --btn-pink-light: #f472b6;
             --border-radius: 12px;
-            --border-color: #000000; /* Darkened borders for better contrast */
+            --border-color: #000000; 
             --purple-accent: #9333ea;
         }
         
         * { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; box-sizing: border-box; text-transform: uppercase; }
         input, .terminal { -webkit-user-select: text; user-select: text; } 
         
-        /* 4. APPLY PT MONO & 8. STATIC BACKGROUND TRICK */
         body { 
             font-family: 'PT Mono', monospace; 
             background-color: var(--bg-color); 
@@ -41,12 +40,9 @@
         }
         
         body::before {
-            content: "";
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
+            content: ""; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
             background-image: linear-gradient(var(--grid-color) 1px, transparent 1px), linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
-            background-size: 40px 40px;
-            z-index: -1;
+            background-size: 40px 40px; z-index: -1;
         }
         
         /* AUTH SCREEN */
@@ -55,23 +51,29 @@
         #auth-screen input { padding: 15px; font-family: 'PT Mono', monospace; font-size: 1.5rem; text-align: center; border: 4px solid var(--btn-purple); border-radius: 30px; background: white; color: black; width: 250px; margin-bottom: 20px; outline: none;}
         #auth-screen button { padding: 15px 20px; font-size: 1.2rem; cursor: pointer; background: var(--btn-solid); color: white; border: none; border-radius: 10px; font-weight: bold; width: 250px;}
         
-        .container { max-width: 500px; width: 100%; display: none; padding: 0 15px; }
+        /* 1. FULL WIDTH MAIN WRAPPER */
+        #main-app { width: 100%; display: none; }
+        .content-container { max-width: 500px; width: 100%; margin: 0 auto; padding: 0 15px; }
         
         .title-container { width: 100%; padding: 25px 0 15px 0; text-align: center; font-size: 1.4rem; font-weight: 900; letter-spacing: 2px; }
         .purple-accent { color: var(--purple-accent); }
 
-        /* 1 & 2. PINNED STATUS BAR WITH DIVIDERS */
+        /* 2. INLINE TEXT HIGHLIGHT (Masks the grid only behind the text) */
+        .text-highlight { background-color: var(--bg-color); padding: 4px 10px; border-radius: 6px; display: inline-block; }
+
+        /* 1. PINNED STATUS BAR (FULL WIDTH ON MOBILE) */
         .sticky-header {
             position: sticky; top: 0; z-index: 100;
-            background: rgba(253, 242, 248, 0.95);
-            backdrop-filter: blur(5px);
-            padding: 12px 0;
-            margin-bottom: 20px;
-            display: flex; flex-direction: column; align-items: center;
-            border-top: 2px solid var(--text-main);
-            border-bottom: 2px solid var(--text-main);
+            background: rgba(253, 242, 248, 0.95); backdrop-filter: blur(5px);
+            padding: 12px 0; margin-bottom: 20px;
+            width: 100%; 
+            border-top: 2px solid var(--text-main); border-bottom: 2px solid var(--text-main);
         }
-        .header-controls { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 0 2px; gap: 8px;}
+        /* Inner container keeps buttons aligned with the 500px cards */
+        .header-controls { 
+            display: flex; justify-content: space-between; align-items: center; 
+            max-width: 500px; width: 100%; margin: 0 auto; padding: 0 15px; gap: 8px;
+        }
         
         .status-badge { padding: 6px 12px; font-weight: bold; border-radius: 20px; border: 2px solid transparent; font-size: 0.75rem; color: white;}
         .bg-grey { background-color: #94a3b8; }
@@ -86,17 +88,13 @@
         .card { border: 2px solid var(--border-color); border-radius: var(--border-radius); padding: 15px; margin-bottom: 20px; background: var(--card-bg); }
         .card > label { font-weight: 800; font-size: 0.85rem; display: block; margin-bottom: 10px; }
         
-        /* 3. FIXED SLIDERS */
-        input[type="range"] { 
-            -webkit-appearance: none; width: 100%; background: transparent; height: 24px; cursor: pointer; margin-bottom: 5px;
-        }
-        input[type="range"]::-webkit-slider-runnable-track {
-            width: 100%; height: 6px; background: #cbd5e1; border-radius: 3px;
-        }
+        /* SLIDERS */
+        input[type="range"] { -webkit-appearance: none; width: 100%; background: transparent; height: 24px; cursor: pointer; margin-bottom: 5px; }
+        input[type="range"]::-webkit-slider-runnable-track { width: 100%; height: 6px; background: #cbd5e1; border-radius: 3px; }
         input[type="range"]::-webkit-slider-thumb {
             -webkit-appearance: none; height: 18px; width: 18px; border-radius: 50%;
             background: #ffffff; border: 2px solid var(--purple-accent);
-            margin-top: -6px; /* Mathematically centers thumb over track */
+            margin-top: -6px; 
         }
 
         /* BUTTONS */
@@ -109,14 +107,14 @@
         .btn-stop { background: var(--btn-pink-light); border: 2px solid var(--btn-solid); color: white; }
         .btn-stop:active { background: var(--btn-solid); }
 
-        /* 3. FIXED TOGGLES */
+        /* TOGGLES */
         .switch-container { display: flex; align-items: center; gap: 10px; font-weight: bold; font-size: 0.8rem; }
         .switch { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
         .switch input { opacity: 0; width: 0; height: 0; }
         .slider-toggle { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #94a3b8; transition: .3s; border-radius: 24px; }
         .slider-toggle:before { 
             position: absolute; content: ""; height: 18px; width: 18px; left: 3px; 
-            top: 50%; transform: translateY(-50%); /* Pixel-perfect vertical centering */
+            top: 50%; transform: translateY(-50%); 
             background-color: white; transition: .3s; border-radius: 50%; 
         }
         input:checked + .slider-toggle { background-color: var(--btn-purple); }
@@ -128,7 +126,7 @@
         details[open] summary::after { transform: rotate(180deg); }
         summary::-webkit-details-marker { display: none; }
 
-        /* 5. RESTORED TERMINAL CONTRAST */
+        /* TERMINAL */
         .terminal { background-color: #111; color: #0f0; padding: 1rem; font-size: 0.8rem; height: 160px; overflow-y: auto; border-radius: 8px; margin-bottom: 15px; line-height: 1.4; border: 2px solid var(--border-color); text-transform: none; }
         
         /* AUDIO LIBRARY GRID */
@@ -161,13 +159,11 @@
         .sys-btn { background: #f1f5f9; border: 2px solid var(--border-color); color: var(--border-color); padding: 10px; font-family: 'PT Mono', monospace; font-weight: bold; border-radius: 8px; cursor: pointer; width: 100%; margin-bottom: 8px;}
         .sys-btn:active { background: #e2e8f0; }
 
-        /* 7. LEFT/RIGHT ARROW SPINNERS */
         .input-group-controls { display: flex; align-items: center; gap: 5px;}
         .spin-btn { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; width: 25px; height: 28px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; cursor: pointer;}
         .spin-btn:active { background: #e2e8f0; }
         
-        /* 11. SOLID FOOTER BACKGROUND */
-        .footer-line { background-color: var(--bg-color); width: 100%; text-align: center; font-size: 0.75rem; color: #64748b; padding: 20px 0 30px 0;}
+        .footer-line { text-align: center; font-size: 0.75rem; color: #64748b; padding: 10px 0 30px 0;}
     </style>
 </head>
 <body>
@@ -179,9 +175,11 @@
         <p id="auth-error" style="color: red; display: none; font-weight: bold;">INVALID PASSCODE</p>
     </div>
 
-    <div class="container" id="main-app">
+    <div id="main-app">
         
-        <div class="title-container">UNTITLED<span class="purple-accent">~</span>CAFE <span class="purple-accent">//</span> SAFE</div>
+        <div class="title-container">
+            <span class="text-highlight">UNTITLED<span class="purple-accent">~</span>CAFE <span class="purple-accent">//</span> SAFE</span>
+        </div>
 
         <div class="sticky-header">
             <div class="header-controls">
@@ -201,151 +199,153 @@
             </div>
         </div>
 
-        <div class="card">
-            <label>MANUAL ALARM TRIGGER</label>
-            <div class="btn-grid">
-                <button class="btn-outline" onclick="triggerAlarm(3)">SOUND ALARM 3 SEC</button>
-                <button class="btn-outline" onclick="triggerAlarm(5)">SOUND ALARM 5 SEC</button>
-                <button class="btn-outline" onclick="triggerAlarm(10)">SOUND ALARM 10 SEC</button>
-                <button class="btn-outline" onclick="triggerAlarm(30)">SOUND ALARM 30 SEC</button>
-            </div>
-            <div class="btn-grid">
-                <button class="btn-solid" onmousedown="holdAlarm(true)" onmouseup="holdAlarm(false)" onmouseleave="holdAlarm(false)" ontouchstart="holdAlarm(true)" ontouchend="holdAlarm(false)">HOLD TO PLAY</button>
-                <button class="btn-solid btn-stop" onclick="stopAlarm()">STOP</button>
-            </div>
-
-            <label style="margin-top: 20px;">SIREN VOLUME: <span id="vol-val">50%</span></label>
-            <input type="range" id="volume" min="0" max="100" value="50" onchange="saveSettings()">
-
-            <details>
-                <summary>ADVANCED SIREN SETTINGS</summary>
-                <div style="margin-top: 15px;">
-                    <label>SIREN MIN FREQUENCY: <span id="smin-val">800Hz</span></label>
-                    <input type="range" id="siren-min" min="300" max="2500" step="50" value="800" onchange="saveSettings()">
-                    
-                    <label style="margin-top: 10px;">SIREN MAX FREQUENCY: <span id="smax-val">1600Hz</span></label>
-                    <input type="range" id="siren-max" min="300" max="2500" step="50" value="1600" onchange="saveSettings()">
-                    
-                    <label style="margin-top: 10px;">SIREN SWEEP SPEED: <span id="sspeed-val">10</span></label>
-                    <input type="range" id="siren-speed" min="1" max="50" value="10" onchange="saveSettings()">
+        <div class="content-container">
+            <div class="card">
+                <label>MANUAL ALARM TRIGGER</label>
+                <div class="btn-grid">
+                    <button class="btn-outline" onclick="triggerAlarm(3)">SOUND ALARM 3 SEC</button>
+                    <button class="btn-outline" onclick="triggerAlarm(5)">SOUND ALARM 5 SEC</button>
+                    <button class="btn-outline" onclick="triggerAlarm(10)">SOUND ALARM 10 SEC</button>
+                    <button class="btn-outline" onclick="triggerAlarm(30)">SOUND ALARM 30 SEC</button>
                 </div>
-            </details>
-        </div>
+                <div class="btn-grid">
+                    <button class="btn-solid" onmousedown="holdAlarm(true)" onmouseup="holdAlarm(false)" onmouseleave="holdAlarm(false)" ontouchstart="holdAlarm(true)" ontouchend="holdAlarm(false)">HOLD TO PLAY</button>
+                    <button class="btn-solid btn-stop" onclick="stopAlarm()">STOP</button>
+                </div>
 
-        <div class="card">
-            <label style="margin-bottom: 5px;">AUDIO LIBRARY (MAX 10S PER SLOT)</label>
-            
-            <label style="margin-top: 10px; font-size: 0.75rem;">AUDIO VOLUME: <span id="wvol-val">50%</span></label>
-            <input type="range" id="wav-volume" min="0" max="100" value="50" onchange="saveSettings()" style="margin-bottom: 20px;">
-            
-            <div id="slot-grid">
+                <label style="margin-top: 20px;">SIREN VOLUME: <span id="vol-val">50%</span></label>
+                <input type="range" id="volume" min="0" max="100" value="50" onchange="saveSettings()">
+
+                <details>
+                    <summary>ADVANCED SIREN SETTINGS</summary>
+                    <div style="margin-top: 15px;">
+                        <label>SIREN MIN FREQUENCY: <span id="smin-val">800Hz</span></label>
+                        <input type="range" id="siren-min" min="300" max="2500" step="50" value="800" onchange="saveSettings()">
+                        
+                        <label style="margin-top: 10px;">SIREN MAX FREQUENCY: <span id="smax-val">1600Hz</span></label>
+                        <input type="range" id="siren-max" min="300" max="2500" step="50" value="1600" onchange="saveSettings()">
+                        
+                        <label style="margin-top: 10px;">SIREN SWEEP SPEED: <span id="sspeed-val">10</span></label>
+                        <input type="range" id="siren-speed" min="1" max="50" value="10" onchange="saveSettings()">
+                    </div>
+                </details>
+            </div>
+
+            <div class="card">
+                <label style="margin-bottom: 5px;">AUDIO LIBRARY (MAX 10S PER SLOT)</label>
                 
-                <div class="slot-card" style="grid-column: 1 / -1; border-color: var(--btn-solid); border-width: 3px;">
-                    <h4 style="color: var(--btn-solid); font-size: 1rem;">
-                        <span id="name-slot0">JAMAICAN HORN (SLOT 0)</span> 
-                        <span class="icon-btn" onclick="renameSlot(0)" title="Rename Slot">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
-                        </span>
-                    </h4>
-                    <button id="btn-play-0" onclick="triggerSlot(0)" class="btn-main-play" style="height: 50px; background: var(--btn-solid); color: white; border-color: transparent; font-size: 1.1rem;">PLAY</button>
-                    <div class="slot-controls" style="height: 40px;">
-                        <label class="btn-sm"><div class="btn-sm-label">UPLOAD</div><input type="file" hidden accept="audio/mp3, audio/wav, audio/m4a, audio/x-m4a, audio/aac" onchange="uploadToSlot(event, 0)"></label>
-                        <button onmousedown="startRecording(0)" onmouseup="stopRecording()" ontouchstart="startRecording(0)" ontouchend="stopRecording()" class="btn-sm mic-btn">RECORD</button>
-                        <button onclick="previewAudio(0)" class="btn-sm play-btn">PRE-LISTEN</button>
-                        <button onclick="deleteSlot(0)" class="btn-sm del-btn">DELETE</button>
+                <label style="margin-top: 10px; font-size: 0.75rem;">AUDIO VOLUME: <span id="wvol-val">50%</span></label>
+                <input type="range" id="wav-volume" min="0" max="100" value="50" onchange="saveSettings()" style="margin-bottom: 20px;">
+                
+                <div id="slot-grid">
+                    
+                    <div class="slot-card" style="grid-column: 1 / -1; border-color: var(--btn-solid); border-width: 3px;">
+                        <h4 style="color: var(--btn-solid); font-size: 1rem;">
+                            <span id="name-slot0">JAMAICAN HORN (SLOT 0)</span> 
+                            <span class="icon-btn" onclick="renameSlot(0)" title="Rename Slot">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                            </span>
+                        </h4>
+                        <button id="btn-play-0" onclick="triggerSlot(0)" class="btn-main-play" style="height: 50px; background: var(--btn-solid); color: white; border-color: transparent; font-size: 1.1rem;">PLAY</button>
+                        <div class="slot-controls" style="height: 40px;">
+                            <label class="btn-sm"><div class="btn-sm-label">UPLOAD</div><input type="file" hidden accept="audio/mp3, audio/wav, audio/m4a, audio/x-m4a, audio/aac" onchange="uploadToSlot(event, 0)"></label>
+                            <button onmousedown="startRecording(0)" onmouseup="stopRecording()" ontouchstart="startRecording(0)" ontouchend="stopRecording()" class="btn-sm mic-btn">RECORD</button>
+                            <button onclick="previewAudio(0)" class="btn-sm play-btn">PRE-LISTEN</button>
+                            <button onclick="deleteSlot(0)" class="btn-sm del-btn">DELETE</button>
+                        </div>
                     </div>
-                </div>
 
-                <script>
-                    const svgEdit = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>`;
-                    const svgPlay = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3" fill="currentColor"></polygon></svg>`;
-                    const svgGear = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`;
-                    const svgUpload = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>`;
-                    const svgMic = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>`;
-                    const svgTrash = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
+                    <script>
+                        const svgEdit = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>`;
+                        const svgPlay = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3" fill="currentColor"></polygon></svg>`;
+                        const svgGear = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`;
+                        const svgUpload = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>`;
+                        const svgMic = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>`;
+                        const svgTrash = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
 
-                    for(let i=1; i<=4; i++) {
-                        document.write(`
-                            <div class="slot-card">
-                                <h4>
-                                    <span id="name-slot${i}">SLOT ${i}</span> 
-                                    <span class="icon-btn" onclick="renameSlot(${i})">${svgEdit}</span>
-                                </h4>
-                                <button id="btn-play-${i}" onclick="triggerSlot(${i})" class="btn-main-play">PLAY</button>
-                                
-                                <div class="slot-controls">
-                                    <button onclick="previewAudio(${i})" class="btn-sm play-btn">${svgPlay}</button>
-                                    <button onclick="toggleAllSmallSlotsEdit()" class="btn-sm">${svgGear}</button>
+                        for(let i=1; i<=4; i++) {
+                            document.write(`
+                                <div class="slot-card">
+                                    <h4>
+                                        <span id="name-slot${i}">SLOT ${i}</span> 
+                                        <span class="icon-btn" onclick="renameSlot(${i})">${svgEdit}</span>
+                                    </h4>
+                                    <button id="btn-play-${i}" onclick="triggerSlot(${i})" class="btn-main-play">PLAY</button>
+                                    
+                                    <div class="slot-controls">
+                                        <button onclick="previewAudio(${i})" class="btn-sm play-btn">${svgPlay}</button>
+                                        <button onclick="toggleAllSmallSlotsEdit()" class="btn-sm">${svgGear}</button>
+                                    </div>
+                                    
+                                    <div id="edit-panel-${i}" class="slot-edit-panel" style="display: none;">
+                                        <label class="btn-sm"><div class="btn-sm-label">${svgUpload}<input type="file" hidden accept="audio/mp3, audio/wav, audio/m4a, audio/x-m4a, audio/aac" onchange="uploadToSlot(event, ${i})"></div></label>
+                                        <button onmousedown="startRecording(${i})" onmouseup="stopRecording()" ontouchstart="startRecording(${i})" ontouchend="stopRecording()" class="btn-sm mic-btn">${svgMic}</button>
+                                        <button onclick="deleteSlot(${i})" class="btn-sm del-btn">${svgTrash}</button>
+                                    </div>
                                 </div>
-                                
-                                <div id="edit-panel-${i}" class="slot-edit-panel" style="display: none;">
-                                    <label class="btn-sm"><div class="btn-sm-label">${svgUpload}<input type="file" hidden accept="audio/mp3, audio/wav, audio/m4a, audio/x-m4a, audio/aac" onchange="uploadToSlot(event, ${i})"></div></label>
-                                    <button onmousedown="startRecording(${i})" onmouseup="stopRecording()" ontouchstart="startRecording(${i})" ontouchend="stopRecording()" class="btn-sm mic-btn">${svgMic}</button>
-                                    <button onclick="deleteSlot(${i})" class="btn-sm del-btn">${svgTrash}</button>
-                                </div>
-                            </div>
-                        `);
-                    }
-                </script>
+                            `);
+                        }
+                    </script>
+                </div>
+                <p id="upload-status" style="text-align:center; margin-top:15px; font-size:0.85em; font-weight: bold; height: 15px;"></p>
             </div>
-            <p id="upload-status" style="text-align:center; margin-top:15px; font-size:0.85em; font-weight: bold; height: 15px;"></p>
-        </div>
 
-        <div class="card">
-            <div class="switch-container" style="margin-bottom: 15px;">
-                <label class="switch"><input type="checkbox" id="periodic-toggle" onchange="toggleBeep('periodic-toggle')"><span class="slider-toggle"></span></label>
-                <span id="periodic-title">PERIODIC BEEP EVERY 3 SEC</span>
-            </div>
-            
-            <div style="padding-left: 10px; border-left: 3px solid #cbd5e1;">
-                <div class="input-group">
-                    <label>INTERVAL (SEC):</label>
-                    <div class="input-group-controls">
-                        <span class="spin-btn" onclick="decrementInterval()">&lt;</span>
-                        <input type="text" id="periodic-sec" value="3" min="1" onchange="updatePeriodicTitle(); saveSettings()">
-                        <span class="spin-btn" onclick="incrementInterval()">&gt;</span>
+            <div class="card">
+                <div class="switch-container" style="margin-bottom: 15px;">
+                    <label class="switch"><input type="checkbox" id="periodic-toggle" onchange="toggleBeep('periodic-toggle')"><span class="slider-toggle"></span></label>
+                    <span id="periodic-title">PERIODIC BEEP EVERY 3 SEC</span>
+                </div>
+                
+                <div style="padding-left: 10px; border-left: 3px solid #cbd5e1;">
+                    <div class="input-group">
+                        <label>INTERVAL (SEC):</label>
+                        <div class="input-group-controls">
+                            <span class="spin-btn" onclick="decrementInterval()">&lt;</span>
+                            <input type="text" id="periodic-sec" value="3" min="1" onchange="updatePeriodicTitle(); saveSettings()">
+                            <span class="spin-btn" onclick="incrementInterval()">&gt;</span>
+                        </div>
                     </div>
-                </div>
-                <div class="input-group">
-                    <label>LENGTH (SEC):</label>
-                    <div class="input-group-controls">
-                        <span class="spin-btn" onclick="decrementLength()">&lt;</span>
-                        <input type="text" id="periodic-len" value="0.1" step="0.1" min="0.1" onchange="saveSettings()">
-                        <span class="spin-btn" onclick="incrementLength()">&gt;</span>
+                    <div class="input-group">
+                        <label>LENGTH (SEC):</label>
+                        <div class="input-group-controls">
+                            <span class="spin-btn" onclick="decrementLength()">&lt;</span>
+                            <input type="text" id="periodic-len" value="0.1" step="0.1" min="0.1" onchange="saveSettings()">
+                            <span class="spin-btn" onclick="incrementLength()">&gt;</span>
+                        </div>
                     </div>
+
+                    <label style="margin-top: 15px;">BEEP FREQUENCY: <span id="pfreq-val">1000Hz</span></label>
+                    <input type="range" id="periodic-freq" min="300" max="2500" step="50" value="1000" onchange="saveSettings()">
+
+                    <label style="margin-top: 10px;">BEEP VOLUME: <span id="pvol-val">50%</span></label>
+                    <input type="range" id="periodic-vol" min="0" max="100" value="50" onchange="saveSettings()">
                 </div>
-
-                <label style="margin-top: 15px;">BEEP FREQUENCY: <span id="pfreq-val">1000Hz</span></label>
-                <input type="range" id="periodic-freq" min="300" max="2500" step="50" value="1000" onchange="saveSettings()">
-
-                <label style="margin-top: 10px;">BEEP VOLUME: <span id="pvol-val">50%</span></label>
-                <input type="range" id="periodic-vol" min="0" max="100" value="50" onchange="saveSettings()">
             </div>
-        </div>
 
-        <div class="card">
-            <label style="margin-bottom: 10px;">SYSTEM LOGS</label>
-            <div class="terminal" id="live-log">Loading system logs...</div>
-            
-            <div style="display: flex; justify-content: space-between; font-size: 0.75rem; font-weight: bold; color: #64748b; margin-bottom: 15px;">
-                <span>UPTIME: <span id="sys-uptime">0h 0m</span></span>
-                <span id="fw-version">FW: 260403164203</span>
-            </div>
-            
-            <button class="sys-btn" onclick="logout()">LOG OUT / CLEAR CACHE</button>
-
-            <details>
-                <summary>SYSTEM ACTIONS</summary>
-                <div style="margin-top: 15px;">
-                    <button class="sys-btn" onclick="changePasscode()">CHANGE LOCAL PASSCODE</button>
-                    <button class="sys-btn" onclick="updateFirmware()">PULL GITHUB OTA BUILD</button>
-                    <button class="sys-btn" style="color: var(--btn-solid); border-color: var(--btn-solid);" onclick="rebootESP()">HARD REBOOT ESP32</button>
+            <div class="card">
+                <label style="margin-bottom: 10px;">SYSTEM LOGS</label>
+                <div class="terminal" id="live-log">Loading system logs...</div>
+                
+                <div style="display: flex; justify-content: space-between; font-size: 0.75rem; font-weight: bold; color: #64748b; margin-bottom: 15px;">
+                    <span>UPTIME: <span id="sys-uptime">0h 0m</span></span>
+                    <span id="fw-version">FW: 260403165617</span>
                 </div>
-            </details>
-        </div>
-        
-        <div class="footer-line">
-            DESIGNED AND ENGINEERED BY ROMAN GODISH &middot; 2026
+                
+                <button class="sys-btn" onclick="logout()">LOG OUT / CLEAR CACHE</button>
+
+                <details>
+                    <summary>SYSTEM ACTIONS</summary>
+                    <div style="margin-top: 15px;">
+                        <button class="sys-btn" onclick="changePasscode()">CHANGE LOCAL PASSCODE</button>
+                        <button class="sys-btn" onclick="updateFirmware()">PULL GITHUB OTA BUILD</button>
+                        <button class="sys-btn" style="color: var(--btn-solid); border-color: var(--btn-solid);" onclick="rebootESP()">HARD REBOOT ESP32</button>
+                    </div>
+                </details>
+            </div>
+            
+            <div class="footer-line">
+                <span class="text-highlight">DESIGNED AND ENGINEERED BY ROMAN GODISH &middot; 2026</span>
+            </div>
         </div>
     </div>
 
@@ -402,7 +402,6 @@
             window.ampStateBuffer = headerState; 
         }
         
-        // 12. UNIFIED BEEP TOGGLE
         function toggleBeep(sourceID) {
             const isChecked = document.getElementById(sourceID).checked;
             document.getElementById('periodic-toggle-header').checked = isChecked;
@@ -458,7 +457,6 @@
             }
         }
 
-        // 6. RESTORED LOGOUT FUNCTION
         function logout() { 
             localStorage.removeItem("system_pin"); 
             location.reload(); 
