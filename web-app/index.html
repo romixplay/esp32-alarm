@@ -45,31 +45,24 @@
             background-size: 40px 40px; z-index: -1;
         }
         
-        /* AUTH SCREEN */
         #auth-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #f8fafc; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 1000; }
         #auth-screen h2 { font-weight: 900; letter-spacing: -1px; font-size: 1.5rem; margin-bottom: 20px;}
         #auth-screen input { padding: 15px; font-family: 'PT Mono', monospace; font-size: 1.5rem; text-align: center; border: 4px solid var(--btn-purple); border-radius: 30px; background: white; color: black; width: 250px; margin-bottom: 20px; outline: none;}
         #auth-screen button { padding: 15px 20px; font-size: 1.2rem; cursor: pointer; background: var(--btn-solid); color: white; border: none; border-radius: 10px; font-weight: bold; width: 250px;}
         
-        /* 1. FULL WIDTH MAIN WRAPPER */
         #main-app { width: 100%; display: none; }
         .content-container { max-width: 500px; width: 100%; margin: 0 auto; padding: 0 15px; }
         
         .title-container { width: 100%; padding: 25px 0 15px 0; text-align: center; font-size: 1.4rem; font-weight: 900; letter-spacing: 2px; }
         .purple-accent { color: var(--purple-accent); }
-
-        /* 2. INLINE TEXT HIGHLIGHT (Masks the grid only behind the text) */
         .text-highlight { background-color: var(--bg-color); padding: 4px 10px; border-radius: 6px; display: inline-block; }
 
-        /* 1. PINNED STATUS BAR (FULL WIDTH ON MOBILE) */
         .sticky-header {
             position: sticky; top: 0; z-index: 100;
             background: rgba(253, 242, 248, 0.95); backdrop-filter: blur(5px);
-            padding: 12px 0; margin-bottom: 20px;
-            width: 100%; 
+            padding: 12px 0; margin-bottom: 20px; width: 100%; 
             border-top: 2px solid var(--text-main); border-bottom: 2px solid var(--text-main);
         }
-        /* Inner container keeps buttons aligned with the 500px cards */
         .header-controls { 
             display: flex; justify-content: space-between; align-items: center; 
             max-width: 500px; width: 100%; margin: 0 auto; padding: 0 15px; gap: 8px;
@@ -84,20 +77,16 @@
         .btn-refresh { background: #e2e8f0; border: 2px solid var(--border-color); border-radius: 8px; padding: 6px 10px; font-family: 'PT Mono', monospace; font-weight: bold; font-size: 0.7rem; cursor: pointer; }
         .btn-refresh:active { background: #cbd5e1; }
 
-        /* CARDS */
         .card { border: 2px solid var(--border-color); border-radius: var(--border-radius); padding: 15px; margin-bottom: 20px; background: var(--card-bg); }
         .card > label { font-weight: 800; font-size: 0.85rem; display: block; margin-bottom: 10px; }
         
-        /* SLIDERS */
         input[type="range"] { -webkit-appearance: none; width: 100%; background: transparent; height: 24px; cursor: pointer; margin-bottom: 5px; }
         input[type="range"]::-webkit-slider-runnable-track { width: 100%; height: 6px; background: #cbd5e1; border-radius: 3px; }
         input[type="range"]::-webkit-slider-thumb {
             -webkit-appearance: none; height: 18px; width: 18px; border-radius: 50%;
-            background: #ffffff; border: 2px solid var(--purple-accent);
-            margin-top: -6px; 
+            background: #ffffff; border: 2px solid var(--purple-accent); margin-top: -6px; 
         }
 
-        /* BUTTONS */
         .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
         .btn-outline { background: var(--btn-purple-muted); color: white; border: none; padding: 12px 5px; font-family: 'PT Mono', monospace; font-weight: bold; font-size: 0.75rem; cursor: pointer; border-radius: 8px; text-align: center; }
         .btn-outline:active { background: var(--btn-purple); }
@@ -107,7 +96,6 @@
         .btn-stop { background: var(--btn-pink-light); border: 2px solid var(--btn-solid); color: white; }
         .btn-stop:active { background: var(--btn-solid); }
 
-        /* TOGGLES */
         .switch-container { display: flex; align-items: center; gap: 10px; font-weight: bold; font-size: 0.8rem; }
         .switch { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
         .switch input { opacity: 0; width: 0; height: 0; }
@@ -126,10 +114,8 @@
         details[open] summary::after { transform: rotate(180deg); }
         summary::-webkit-details-marker { display: none; }
 
-        /* TERMINAL */
         .terminal { background-color: #111; color: #0f0; padding: 1rem; font-size: 0.8rem; height: 160px; overflow-y: auto; border-radius: 8px; margin-bottom: 15px; line-height: 1.4; border: 2px solid var(--border-color); text-transform: none; }
         
-        /* AUDIO LIBRARY GRID */
         #slot-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         .slot-card { background: #f8fafc; border: 2px solid var(--border-color); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; }
         .slot-card h4 { margin: 0 0 10px 0; font-size: 0.85rem; font-weight: 800; display: flex; justify-content: space-between; align-items: center;}
@@ -141,8 +127,7 @@
         .slot-edit-panel { display: flex; justify-content: space-between; gap: 6px; height: 34px; margin-top: 4px; padding-top: 6px; border-top: 1px dashed #cbd5e1;}
 
         .btn-sm { 
-            flex: 1 1 0; height: 100%; border-radius: 6px;
-            display: flex; align-items: center; justify-content: center; 
+            flex: 1 1 0; height: 100%; border-radius: 6px; display: flex; align-items: center; justify-content: center; 
             font-size: 0.65rem; background: var(--border-color); color: white; border: none; cursor: pointer; font-family: 'PT Mono', monospace; font-weight: bold; 
         }
         .btn-sm.mic-btn { background: #64748b; }
@@ -163,6 +148,12 @@
         .spin-btn { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; width: 25px; height: 28px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; cursor: pointer;}
         .spin-btn:active { background: #e2e8f0; }
         
+        /* SEQUENCER BUTTONS */
+        .seq-slots { display: flex; justify-content: space-between; gap: 5px; margin-bottom: 10px; }
+        .seq-btn { flex: 1; padding: 10px; font-family: 'PT Mono', monospace; font-weight: bold; border: 2px solid #cbd5e1; background: #f1f5f9; border-radius: 8px; cursor: pointer; transition: 0.2s;}
+        .seq-btn.selected { border-color: var(--btn-purple); background: #e9d5ff; }
+        .seq-btn.playing { background: var(--btn-green, #10b981); color: white; border-color: #059669; }
+
         .footer-line { text-align: center; font-size: 0.75rem; color: #64748b; padding: 10px 0 30px 0;}
     </style>
 </head>
@@ -187,7 +178,7 @@
                 
                 <div class="header-switch-group">
                     <label class="switch"><input type="checkbox" id="amp-toggle-header" checked onchange="syncAmp(); saveSettings()"><span class="slider-toggle"></span></label>
-                    <span>SOUND</span>
+                    <span>MASTER AUDIO</span>
                 </div>
                 
                 <div class="header-switch-group">
@@ -219,75 +210,50 @@
                 <details>
                     <summary>ADVANCED SIREN SETTINGS</summary>
                     <div style="margin-top: 15px;">
-                        <label>SIREN MIN FREQUENCY: <span id="smin-val">800Hz</span></label>
-                        <input type="range" id="siren-min" min="300" max="2500" step="50" value="800" onchange="saveSettings()">
+                        
+                        <div class="switch-container" style="margin-bottom: 15px;">
+                            <label class="switch"><input type="checkbox" id="amp1-toggle" checked onchange="saveSettings()"><span class="slider-toggle"></span></label>
+                            <span>AMP 1 (LEFT) POWER</span>
+                        </div>
+                        <div class="switch-container" style="margin-bottom: 20px; border-bottom: 1px solid #cbd5e1; padding-bottom: 15px;">
+                            <label class="switch"><input type="checkbox" id="amp2-toggle" checked onchange="saveSettings()"><span class="slider-toggle"></span></label>
+                            <span>AMP 2 (RIGHT) POWER</span>
+                        </div>
+
+                        <label>SIREN SEQUENCE CONFIGURATION</label>
+                        <div class="seq-slots">
+                            <button class="seq-btn selected" id="sbtn-0" onclick="selectSlot(0)">1</button>
+                            <button class="seq-btn" id="sbtn-1" onclick="selectSlot(1)">2</button>
+                            <button class="seq-btn" id="sbtn-2" onclick="selectSlot(2)">3</button>
+                            <button class="seq-btn" id="sbtn-3" onclick="selectSlot(3)">4</button>
+                        </div>
+                        
+                        <label style="margin-top: 10px;">SIREN MIN FREQUENCY: <span id="smin-val">800Hz</span></label>
+                        <input type="range" id="siren-min" min="300" max="2500" step="50" value="800" onchange="updateLabels()">
                         
                         <label style="margin-top: 10px;">SIREN MAX FREQUENCY: <span id="smax-val">1600Hz</span></label>
-                        <input type="range" id="siren-max" min="300" max="2500" step="50" value="1600" onchange="saveSettings()">
+                        <input type="range" id="siren-max" min="300" max="2500" step="50" value="1600" onchange="updateLabels()">
                         
                         <label style="margin-top: 10px;">SIREN SWEEP SPEED: <span id="sspeed-val">10</span></label>
-                        <input type="range" id="siren-speed" min="1" max="50" value="10" onchange="saveSettings()">
+                        <input type="range" id="siren-speed" min="1" max="50" value="10" onchange="updateLabels()">
+
+                        <button class="sys-btn" style="background: var(--btn-purple-muted); color: white; border: none; margin-top: 10px;" onclick="saveToSlot()">SAVE TO SELECTED SLOT</button>
+                        
+                        <div style="background: #e2e8f0; padding: 10px; border-radius: 8px; margin-top: 15px;">
+                            <div class="switch-container">
+                                <label class="switch"><input type="checkbox" id="seq-toggle" onchange="saveSettings()"><span class="slider-toggle"></span></label>
+                                <span>ENABLE SEQUENCER</span>
+                            </div>
+                            <div class="input-group" style="margin-top: 10px;">
+                                <label>SEQUENCE INTERVAL (SEC):</label>
+                                <div class="input-group-controls">
+                                    <input type="text" id="seq-period" value="5" onchange="saveSettings()">
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
                 </details>
-            </div>
-
-            <div class="card">
-                <label style="margin-bottom: 5px;">AUDIO LIBRARY (MAX 10S PER SLOT)</label>
-                
-                <label style="margin-top: 10px; font-size: 0.75rem;">AUDIO VOLUME: <span id="wvol-val">50%</span></label>
-                <input type="range" id="wav-volume" min="0" max="100" value="50" onchange="saveSettings()" style="margin-bottom: 20px;">
-                
-                <div id="slot-grid">
-                    
-                    <div class="slot-card" style="grid-column: 1 / -1; border-color: var(--btn-solid); border-width: 3px;">
-                        <h4 style="color: var(--btn-solid); font-size: 1rem;">
-                            <span id="name-slot0">JAMAICAN HORN (SLOT 0)</span> 
-                            <span class="icon-btn" onclick="renameSlot(0)" title="Rename Slot">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
-                            </span>
-                        </h4>
-                        <button id="btn-play-0" onclick="triggerSlot(0)" class="btn-main-play" style="height: 50px; background: var(--btn-solid); color: white; border-color: transparent; font-size: 1.1rem;">PLAY</button>
-                        <div class="slot-controls" style="height: 40px;">
-                            <label class="btn-sm"><div class="btn-sm-label">UPLOAD</div><input type="file" hidden accept="audio/mp3, audio/wav, audio/m4a, audio/x-m4a, audio/aac" onchange="uploadToSlot(event, 0)"></label>
-                            <button onmousedown="startRecording(0)" onmouseup="stopRecording()" ontouchstart="startRecording(0)" ontouchend="stopRecording()" class="btn-sm mic-btn">RECORD</button>
-                            <button onclick="previewAudio(0)" class="btn-sm play-btn">PRE-LISTEN</button>
-                            <button onclick="deleteSlot(0)" class="btn-sm del-btn">DELETE</button>
-                        </div>
-                    </div>
-
-                    <script>
-                        const svgEdit = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>`;
-                        const svgPlay = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3" fill="currentColor"></polygon></svg>`;
-                        const svgGear = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`;
-                        const svgUpload = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>`;
-                        const svgMic = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>`;
-                        const svgTrash = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
-
-                        for(let i=1; i<=4; i++) {
-                            document.write(`
-                                <div class="slot-card">
-                                    <h4>
-                                        <span id="name-slot${i}">SLOT ${i}</span> 
-                                        <span class="icon-btn" onclick="renameSlot(${i})">${svgEdit}</span>
-                                    </h4>
-                                    <button id="btn-play-${i}" onclick="triggerSlot(${i})" class="btn-main-play">PLAY</button>
-                                    
-                                    <div class="slot-controls">
-                                        <button onclick="previewAudio(${i})" class="btn-sm play-btn">${svgPlay}</button>
-                                        <button onclick="toggleAllSmallSlotsEdit()" class="btn-sm">${svgGear}</button>
-                                    </div>
-                                    
-                                    <div id="edit-panel-${i}" class="slot-edit-panel" style="display: none;">
-                                        <label class="btn-sm"><div class="btn-sm-label">${svgUpload}<input type="file" hidden accept="audio/mp3, audio/wav, audio/m4a, audio/x-m4a, audio/aac" onchange="uploadToSlot(event, ${i})"></div></label>
-                                        <button onmousedown="startRecording(${i})" onmouseup="stopRecording()" ontouchstart="startRecording(${i})" ontouchend="stopRecording()" class="btn-sm mic-btn">${svgMic}</button>
-                                        <button onclick="deleteSlot(${i})" class="btn-sm del-btn">${svgTrash}</button>
-                                    </div>
-                                </div>
-                            `);
-                        }
-                    </script>
-                </div>
-                <p id="upload-status" style="text-align:center; margin-top:15px; font-size:0.85em; font-weight: bold; height: 15px;"></p>
             </div>
 
             <div class="card">
@@ -328,7 +294,7 @@
                 
                 <div style="display: flex; justify-content: space-between; font-size: 0.75rem; font-weight: bold; color: #64748b; margin-bottom: 15px;">
                     <span>UPTIME: <span id="sys-uptime">0h 0m</span></span>
-                    <span id="fw-version">FW: 260406174519</span>
+                    <span id="fw-version">FW: 260406174802</span>
                 </div>
                 
                 <button class="sys-btn" onclick="logout()">LOG OUT / CLEAR CACHE</button>
@@ -363,6 +329,45 @@
         let validPinPayload = null; 
         
         let logHistory = JSON.parse(localStorage.getItem("cafe_log_history")) || [];
+
+        // --- NEW SEQUENCER LOGIC ---
+        let activeEditSlot = 0;
+        let sirenConfigSlots = [
+            {min: 800, max: 1600, speed: 10},
+            {min: 1000, max: 2000, speed: 15},
+            {min: 600, max: 1200, speed: 8},
+            {min: 1200, max: 2400, speed: 20}
+        ];
+
+        function selectSlot(index) {
+            activeEditSlot = index;
+            // Update UI buttons
+            for(let i=0; i<4; i++) {
+                document.getElementById(`sbtn-${i}`).classList.remove('selected');
+            }
+            document.getElementById(`sbtn-${index}`).classList.add('selected');
+            
+            // Load sliders
+            document.getElementById('siren-min').value = sirenConfigSlots[index].min;
+            document.getElementById('siren-max').value = sirenConfigSlots[index].max;
+            document.getElementById('siren-speed').value = sirenConfigSlots[index].speed;
+            updateLabels();
+        }
+
+        async function saveToSlot() {
+            sirenConfigSlots[activeEditSlot].min = parseInt(document.getElementById('siren-min').value);
+            sirenConfigSlots[activeEditSlot].max = parseInt(document.getElementById('siren-max').value);
+            sirenConfigSlots[activeEditSlot].speed = parseInt(document.getElementById('siren-speed').value);
+            
+            await db.ref("alarm_state/siren_config_slots").set(sirenConfigSlots);
+            logToTerminal(`Saved config to Siren Sequence Slot ${activeEditSlot + 1}`);
+            
+            // If sequencer is off, we also push it as the active default
+            if(!document.getElementById('seq-toggle').checked) {
+                saveSettings();
+            }
+        }
+        // ---------------------------
 
         window.onload = function() {
             const savedPin = localStorage.getItem("system_pin");
@@ -416,18 +421,9 @@
         }
         
         function changePasscode() {
-            alert("NOTE: This only changes the passcode saved in your browser. If your Firebase Database Rules enforce a specific pin, you must change it in the Firebase Console as well.");
+            alert("NOTE: This only changes the passcode saved in your browser.");
             localStorage.removeItem("system_pin");
             location.reload();
-        }
-
-        function toggleAllSmallSlotsEdit() {
-            for (let i = 1; i <= 4; i++) {
-                const panel = document.getElementById(`edit-panel-${i}`);
-                if (panel) {
-                    panel.style.display = panel.style.display === "none" ? "flex" : "none";
-                }
-            }
         }
 
         async function login() {
@@ -494,10 +490,30 @@
                 const data = snap.val();
                 if(data) {
                     if(data.volume !== undefined) document.getElementById('volume').value = data.volume;
-                    if(data.wav_volume !== undefined) document.getElementById('wav-volume').value = data.wav_volume;
-                    if(data.siren_min !== undefined) document.getElementById('siren-min').value = data.siren_min;
-                    if(data.siren_max !== undefined) document.getElementById('siren-max').value = data.siren_max;
-                    if(data.siren_speed !== undefined) document.getElementById('siren-speed').value = data.siren_speed;
+                    if(data.amp_enabled !== undefined) {
+                        document.getElementById('amp-toggle-header').checked = data.amp_enabled;
+                        window.ampStateBuffer = data.amp_enabled;
+                    }
+                    if(data.amp1_power !== undefined) document.getElementById('amp1-toggle').checked = data.amp1_power;
+                    if(data.amp2_power !== undefined) document.getElementById('amp2-toggle').checked = data.amp2_power;
+
+                    // Sync Slots & Sequencer
+                    if(data.siren_config_slots) {
+                        sirenConfigSlots = data.siren_config_slots;
+                        // Don't overwrite sliders if user is editing, just keep array updated
+                    }
+                    if(data.seq_active !== undefined) document.getElementById('seq-toggle').checked = data.seq_active;
+                    if(data.seq_period !== undefined) document.getElementById('seq-period').value = data.seq_period;
+
+                    // Light up the playing sequence slot
+                    if(data.active_seq_slot !== undefined) {
+                        for(let i=0; i<4; i++) {
+                            document.getElementById(`sbtn-${i}`).classList.remove('playing');
+                        }
+                        if(data.seq_active) {
+                            document.getElementById(`sbtn-${data.active_seq_slot}`).classList.add('playing');
+                        }
+                    }
                     
                     if(data.periodic_active !== undefined) {
                         document.getElementById('periodic-toggle').checked = data.periodic_active;
@@ -507,41 +523,15 @@
                     if(data.periodic_len !== undefined) document.getElementById('periodic-len').value = data.periodic_len;
                     if(data.periodic_freq !== undefined) document.getElementById('periodic-freq').value = data.periodic_freq;
                     if(data.periodic_vol !== undefined) document.getElementById('periodic-vol').value = data.periodic_vol;
-                    if(data.amp_enabled !== undefined) {
-                        document.getElementById('amp-toggle-header').checked = data.amp_enabled;
-                        window.ampStateBuffer = data.amp_enabled;
-                    }
                     
                     updateLabels();
                     updatePeriodicTitle();
-
-                    for(let i=0; i<=4; i++) {
-                        let slotKey = (i === 0) ? "horn" : `slot${i}`;
-                        let nameEl = document.getElementById(`name-slot${i}`);
-                        if(nameEl && data.slot_names && data.slot_names[slotKey]) {
-                            nameEl.innerText = data.slot_names[slotKey];
-                        }
-                        
-                        let btn = document.getElementById(`btn-play-${i}`);
-                        if(btn) {
-                            if(data.slots && data.slots[slotKey] && data.slots[slotKey].version !== -1 && data.slots[slotKey].version !== undefined) {
-                                btn.innerText = "PLAY";
-                                btn.style.background = "var(--btn-solid)";
-                                btn.style.color = "white";
-                            } else {
-                                btn.innerText = "EMPTY";
-                                btn.style.background = "#f1f5f9";
-                                btn.style.color = "#94a3b8";
-                            }
-                        }
-                    }
                 }
             });
         }
 
         function updateLabels() {
             document.getElementById('vol-val').innerText = document.getElementById('volume').value + '%';
-            document.getElementById('wvol-val').innerText = document.getElementById('wav-volume').value + '%';
             document.getElementById('smin-val').innerText = document.getElementById('siren-min').value + 'Hz';
             document.getElementById('smax-val').innerText = document.getElementById('siren-max').value + 'Hz';
             document.getElementById('sspeed-val').innerText = document.getElementById('siren-speed').value;
@@ -560,16 +550,22 @@
             updatePeriodicTitle();
             await sendCommand("update_settings", {
                 volume: parseInt(document.getElementById('volume').value),
-                wav_volume: parseInt(document.getElementById('wav-volume').value),
+                amp_enabled: document.getElementById('amp-toggle-header').checked,
+                amp1_power: document.getElementById('amp1-toggle').checked,
+                amp2_power: document.getElementById('amp2-toggle').checked,
+                
                 siren_min: parseInt(document.getElementById('siren-min').value),
                 siren_max: parseInt(document.getElementById('siren-max').value),
                 siren_speed: parseInt(document.getElementById('siren-speed').value),
+                
+                seq_active: document.getElementById('seq-toggle').checked,
+                seq_period: parseInt(document.getElementById('seq-period').value) || 5,
+
                 periodic_active: document.getElementById('periodic-toggle').checked, 
                 periodic_sec: parseFloat(document.getElementById('periodic-sec').value), 
                 periodic_vol: parseInt(document.getElementById('periodic-vol').value), 
                 periodic_freq: parseInt(document.getElementById('periodic-freq').value),
-                periodic_len: parseFloat(document.getElementById('periodic-len').value), 
-                amp_enabled: document.getElementById('amp-toggle-header').checked
+                periodic_len: parseFloat(document.getElementById('periodic-len').value)
             });
         }
 
@@ -601,168 +597,9 @@
         async function stopAlarm() { await sendCommand("stop_alarm"); }
         async function rebootESP() { if(confirm("Are you sure you want to hard reset the ESP32?")) { await sendCommand("reboot_esp"); } }
         async function updateFirmware() {
-            const url = prompt("Enter raw GitHub firmware URL (.bin):", "https://romixplay.github.io/esp32-alarm/firmware.bin");
+            const url = prompt("Enter raw GitHub firmware URL (.bin):", "https://romixplay.github.io/esp32-alarm/build/firmware.bin");
             if(url) await sendCommand("sync_firmware", { url });
         }
-
-        async function renameSlot(slotID) {
-            let currentName = document.getElementById(`name-slot${slotID}`).innerText;
-            let newName = prompt("Enter new name (max 15 chars):", currentName);
-            if(newName && newName.trim() !== "") {
-                let slotKey = (slotID === 0) ? "horn" : `slot${slotID}`;
-                await db.ref("alarm_state").update({
-                    [`slot_names/${slotKey}`]: newName.substring(0, 15).toUpperCase(),
-                    master_update_time: Date.now(),
-                    auth_pin: validPinPayload
-                });
-                logToTerminal(`Renamed Slot ${slotID} to ${newName}`);
-            }
-        }
-
-        function previewAudio(slotID) {
-            let slotKey = (slotID === 0) ? "horn" : `slot${slotID}`;
-            db.ref(`alarm_state/slots/${slotKey}/url`).once('value').then(snap => {
-                const url = snap.val();
-                if(url) {
-                    const audio = new Audio(url);
-                    audio.play();
-                    logToTerminal(`Playing preview for Slot ${slotID} on local device.`);
-                } else {
-                    alert("This slot is empty!");
-                }
-            });
-        }
-
-        async function triggerSlot(slotID) {
-            const btn = document.getElementById(`btn-play-${slotID}`);
-            if (btn.innerText === "EMPTY") {
-                alert("This slot is empty! Upload or Record audio first.");
-                return;
-            }
-            await db.ref("alarm_state").update({ 
-                active_slot: slotID, slot_trigger: Date.now(), auth_pin: validPinPayload, master_update_time: Date.now()
-            });
-            logToTerminal(`Triggered Playback on Slot ${slotID}.`);
-        }
-
-        async function deleteSlot(slotID) {
-            if (!confirm(`Clear audio from Slot ${slotID}?`)) return;
-            const slotName = slotID === 0 ? "horn" : `slot${slotID}`;
-            
-            await db.ref("alarm_state").update({
-                [`slots/${slotName}/version`]: -1,
-                master_update_time: Date.now(),
-                auth_pin: validPinPayload
-            });
-
-            document.getElementById('upload-status').innerText = `Slot ${slotID} cleared.`;
-            document.getElementById('upload-status').style.color = "var(--btn-solid)";
-            logToTerminal(`Deleted audio from Slot ${slotID}.`);
-        }
-
-        function uploadToSlot(event, slotID) {
-            const file = event.target.files[0];
-            if (file) convertAndUpload(file, slotID);
-        }
-
-        async function convertAndUpload(file, slotID) {
-            const status = document.getElementById('upload-status');
-            status.innerText = `Processing Audio for Slot ${slotID}...`;
-            status.style.color = "orange";
-
-            try {
-                const arrayBuffer = await file.arrayBuffer();
-                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                const decodedAudio = await audioContext.decodeAudioData(arrayBuffer);
-
-                if (decodedAudio.duration > 10.5) {
-                    status.innerText = "Error: Audio exceeds 10s limit."; status.style.color = "red"; return;
-                }
-
-                const offlineCtx = new OfflineAudioContext(1, decodedAudio.duration * 8000, 8000);
-                const source = offlineCtx.createBufferSource();
-                source.buffer = decodedAudio; 
-                
-                const gainNode = offlineCtx.createGain();
-                gainNode.gain.value = 2.5; 
-                
-                source.connect(gainNode); 
-                gainNode.connect(offlineCtx.destination); 
-                source.start();
-                
-                const resampledAudio = await offlineCtx.startRendering();
-                const wavBlob = audioBufferToWav(resampledAudio);
-
-                status.innerText = `Uploading Slot ${slotID} to Cloud...`;
-                const slotName = (slotID === 0) ? "horn" : `slot${slotID}`;
-                const storageRef = storage.ref(`audio/${slotName}.wav`);
-                await storageRef.put(wavBlob);
-                const downloadURL = await storageRef.getDownloadURL();
-
-                await db.ref("alarm_state").update({
-                    [`slots/${slotName}/url`]: downloadURL,
-                    [`slots/${slotName}/version`]: Date.now(),
-                    master_update_time: Date.now(),
-                    auth_pin: validPinPayload
-                });
-
-                status.innerText = `Slot ${slotID} Synced successfully!`; status.style.color = "green";
-                logToTerminal(`Uploaded new audio to Slot ${slotID}.`);
-                if(slotID !== 0) toggleAllSmallSlotsEdit();
-            } catch (e) {
-                status.innerText = "Upload failed."; status.style.color = "red"; console.error(e);
-                logToTerminal(`Upload failed for Slot ${slotID}. Check console.`);
-            }
-        }
-
-        function audioBufferToWav(buffer) {
-            const numChannels = buffer.numberOfChannels; const sampleRate = buffer.sampleRate;
-            const format = 1; const bitDepth = 16;
-            const result = new Float32Array(buffer.length); buffer.copyFromChannel(result, 0);
-            const bufferLength = result.length * 2 + 44; const wavBuffer = new ArrayBuffer(bufferLength);
-            const view = new DataView(wavBuffer);
-            const writeString = (view, offset, string) => { for (let i = 0; i < string.length; i++) view.setUint8(offset + i, string.charCodeAt(i)); };
-            writeString(view, 0, 'RIFF'); view.setUint32(4, 36 + result.length * 2, true);
-            writeString(view, 8, 'WAVE'); writeString(view, 12, 'fmt ');
-            view.setUint32(16, 16, true); view.setUint16(20, format, true); view.setUint16(22, numChannels, true);
-            view.setUint32(24, sampleRate, true); view.setUint32(28, sampleRate * numChannels * 2, true);
-            view.setUint16(32, numChannels * 2, true); view.setUint16(34, bitDepth, true);
-            writeString(view, 36, 'data'); view.setUint32(40, result.length * 2, true);
-            let offset = 44;
-            for (let i = 0; i < result.length; i++, offset += 2) {
-                let s = Math.max(-1, Math.min(1, result[i]));
-                view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
-            }
-            return new Blob([wavBuffer], { type: 'audio/wav' });
-        }
-
-        let mediaRecorder; let audioChunks = []; let currentRecordSlot = null; let recordStartTime = 0;
-
-        async function startRecording(slotID) {
-            try {
-                currentRecordSlot = slotID;
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                mediaRecorder = new MediaRecorder(stream); audioChunks = [];
-                mediaRecorder.ondataavailable = event => { audioChunks.push(event.data); };
-                mediaRecorder.onstop = async () => {
-                    if (Date.now() - recordStartTime < 1000) {
-                        document.getElementById('upload-status').innerText = "Hold longer to record.";
-                        document.getElementById('upload-status').style.color = "red";
-                        logToTerminal("Recording canceled: Held for less than 1 second.");
-                        return;
-                    }
-                    if (audioChunks.length > 0 && currentRecordSlot !== null) {
-                        const audioBlob = new Blob(audioChunks); convertAndUpload(audioBlob, currentRecordSlot);
-                    }
-                };
-                recordStartTime = Date.now();
-                mediaRecorder.start();
-                document.getElementById('upload-status').innerText = `🔴 Recording Slot ${slotID} (Release to save)...`;
-                document.getElementById('upload-status').style.color = "var(--btn-solid)";
-            } catch (err) { alert("Microphone access denied."); }
-        }
-
-        function stopRecording() { if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop(); }
 
         let lastKnownPing = Date.now();
 
