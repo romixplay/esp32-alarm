@@ -53,13 +53,27 @@ double localSlotVersions[6] = {0, 0, 0, 0, 0, 0};
 
 volatile int audioMode = 0; 
 File wavFile;
-volatile bool ampEnabled = true;
+
+// --- AUDIO SETTINGS ---
+volatile bool ampEnabled = true; // Master Switch
+volatile bool amp1Power = true;  // Individual Amp 1
+volatile bool amp2Power = true;  // Individual Amp 2
 
 volatile float mainVolume = 0.5;
 volatile float wavVolume = 0.5; 
 volatile int sirenMinFreq = 800;
 volatile int sirenMaxFreq = 1600;
 volatile int sirenSpeed = 10;
+
+// --- SEQUENCER SETTINGS ---
+struct SirenConfig { int minF; int maxF; int speed; };
+SirenConfig sirenSlots[4] = {
+  {800, 1600, 10}, {1000, 2000, 15}, {600, 1200, 8}, {1200, 2400, 20}
+};
+bool seqActive = false;
+int seqPeriod = 5; // seconds
+unsigned long lastSeqTime = 0;
+int currentSeqSlot = 0;
 
 volatile float periodicVolume = 0.5;
 volatile int periodicFreq = 1000;
@@ -88,8 +102,8 @@ void audioTask(void * pvParameters) {
   while(true) {
     if (audioMode > 0 && ampEnabled) {
       if (!wasPlaying) {
-        digitalWrite(PIN_AMP1_SD, HIGH); 
-        digitalWrite(PIN_AMP2_SD, HIGH); 
+        if (amp1Power) digitalWrite(PIN_AMP1_SD, HIGH); 
+        if (amp2Power) digitalWrite(PIN_AMP2_SD, HIGH); 
         wasPlaying = true;
         
         i2s_driver_uninstall(I2S_NUM_0); 
@@ -121,6 +135,10 @@ void audioTask(void * pvParameters) {
           phase = 0;
         }
       }
+      
+      // Real-time Amp Power toggle checks
+      digitalWrite(PIN_AMP1_SD, amp1Power ? HIGH : LOW);
+      digitalWrite(PIN_AMP2_SD, amp2Power ? HIGH : LOW);
       
       if (audioMode == 3) {
         if (wavFile && wavFile.available()) {
@@ -266,7 +284,6 @@ void setup() {
   config.timeout.socketConnection = 10 * 1000;
   config.timeout.serverResponse = 10 * 1000;
 
-  // V8 Stable Memory Limits
   fbdo.setBSSLBufferSize(4096, 1024); 
   fbdo.setResponseSize(2048);
   streamData.setBSSLBufferSize(4096, 1024);
@@ -309,6 +326,22 @@ void loop() {
   if (crashCounter > 0 && millis() > 20000) {
     crashCounter = 0;
     Serial.println("System Stable. Rollback counter cleared.");
+  }
+
+  // --- SEQUENCER LOGIC ---
+  if (seqActive && audioMode == 1) { // Only sequence if alarm is actually ringing
+    if (millis() - lastSeqTime > (seqPeriod * 1000)) {
+      lastSeqTime = millis();
+      currentSeqSlot = (currentSeqSlot + 1) % 4;
+      
+      // Apply slot settings
+      sirenMinFreq = sirenSlots[currentSeqSlot].minF;
+      sirenMaxFreq = sirenSlots[currentSeqSlot].maxF;
+      sirenSpeed   = sirenSlots[currentSeqSlot].speed;
+      
+      // Ping Firebase so UI buttons light up! (Non-blocking async write)
+      Firebase.RTDB.setIntAsync(&fbdo, "/alarm_state/active_seq_slot", currentSeqSlot);
+    }
   }
 
   if (isLocalAlarmActive) {
@@ -370,12 +403,36 @@ void loop() {
             delay(1000); ESP.restart(); 
         }
 
+        // Parse Standard Settings
         if (doc.containsKey("amp_enabled")) ampEnabled = doc["amp_enabled"].as<bool>();
+        if (doc.containsKey("amp1_power")) amp1Power = doc["amp1_power"].as<bool>();
+        if (doc.containsKey("amp2_power")) amp2Power = doc["amp2_power"].as<bool>();
+        
         if (doc.containsKey("volume")) mainVolume = constrain(doc["volume"].as<int>(), 0, 100) / 100.0;
         if (doc.containsKey("wav_volume")) wavVolume = constrain(doc["wav_volume"].as<int>(), 0, 100) / 100.0; 
-        if (doc.containsKey("siren_min")) sirenMinFreq = doc["siren_min"].as<int>();
-        if (doc.containsKey("siren_max")) sirenMaxFreq = doc["siren_max"].as<int>();
-        if (doc.containsKey("siren_speed")) sirenSpeed = doc["siren_speed"].as<int>();
+        
+        // Only override siren frequencies if Sequencer is OFF
+        if (doc.containsKey("seq_active")) seqActive = doc["seq_active"].as<bool>();
+        if (doc.containsKey("seq_period")) seqPeriod = doc["seq_period"].as<int>();
+        
+        if (!seqActive) {
+            if (doc.containsKey("siren_min")) sirenMinFreq = doc["siren_min"].as<int>();
+            if (doc.containsKey("siren_max")) sirenMaxFreq = doc["siren_max"].as<int>();
+            if (doc.containsKey("siren_speed")) sirenSpeed = doc["siren_speed"].as<int>();
+        }
+
+        // Parse Sequencer Slots
+        if (doc.containsKey("siren_config_slots")) {
+            for(int i=0; i<4; i++) {
+                String key = String(i);
+                if (doc["siren_config_slots"].containsKey(key)) {
+                    sirenSlots[i].minF = doc["siren_config_slots"][key]["min"].as<int>();
+                    sirenSlots[i].maxF = doc["siren_config_slots"][key]["max"].as<int>();
+                    sirenSlots[i].speed = doc["siren_config_slots"][key]["speed"].as<int>();
+                }
+            }
+        }
+
         if (doc.containsKey("periodic_sec")) periodicSecs = doc["periodic_sec"].as<int>();
         if (doc.containsKey("periodic_vol")) periodicVolume = constrain(doc["periodic_vol"].as<int>(), 0, 100) / 100.0;
         if (doc.containsKey("periodic_freq")) periodicFreq = doc["periodic_freq"].as<int>();
@@ -395,14 +452,13 @@ void loop() {
           if (doc.containsKey("stop_trigger")) lastStopTrigger = doc["stop_trigger"].as<double>();
           if (doc.containsKey("slot_trigger")) lastSlotTrigger = doc["slot_trigger"].as<double>();
 
-          // FIX: Don't download on boot if the file already exists locally!
           if (doc.containsKey("slots")) {
               for (int i = 0; i <= 4; i++) {
                 String sName = (i == 0) ? "horn" : "slot" + String(i);
                 if (doc["slots"].containsKey(sName)) {
                     double cloudVer = doc["slots"][sName]["version"].as<double>();
                     if (LittleFS.exists("/" + sName + ".wav") && cloudVer != -1) {
-                        localSlotVersions[i] = cloudVer; // Assume we have the right file to prevent boot-loops
+                        localSlotVersions[i] = cloudVer; 
                     }
                 }
               }
